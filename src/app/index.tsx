@@ -23,8 +23,8 @@ import {
 } from '@/constants/meal-flow';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 
-const ROOM_BACKGROUND = require('@/assets/images/wikokko-room-bg.jpg');
-const ROOM_BACKGROUND_NO_BOOK = require('@/assets/images/wikokko-room-bg-nobook.jpg');
+const ROOM_BACKGROUND = require('@/assets/images/perokoko-room-bg.jpg');
+const ROOM_BACKGROUND_NO_BOOK = require('@/assets/images/perokoko-room-bg-nobook.jpg');
 
 function getApiUrl(path: string): string {
   const hostUri = Constants.expoConfig?.hostUri;

@@ -25,7 +25,7 @@ export const ENTRY_POINT_OPTIONS: { value: EntryPoint; label: string }[] = [
   { value: 'breakfast', label: '朝ごはん' },
   { value: 'lunch', label: '昼ごはん' },
   { value: 'dinner', label: '夜ごはん' },
-  { value: 'aiRecommend', label: 'ウィコッコのおすすめ' },
+  { value: 'aiRecommend', label: 'ペロココのおすすめ' },
   { value: 'fridge', label: '冷蔵庫にある食材から考える' },
 ];
 

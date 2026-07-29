@@ -2,6 +2,8 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { NineSliceBox } from '@/components/ui/nine-slice-box';
+import { BREAD_FRAME_IMAGES, BREAD_FRAME_INSETS } from '@/constants/bread-frame';
 import { Spacing } from '@/constants/theme';
 
 export type ChatBubbleProps = {
@@ -14,10 +16,20 @@ export function ChatBubble({ sender, text, variant = 'blob' }: ChatBubbleProps) 
   const isUser = sender === 'user';
   const themeColor = isUser ? 'accent' : 'backgroundElement';
 
+  if (variant === 'card') {
+    return (
+      <View style={[styles.row, isUser && styles.rowUser]}>
+        <NineSliceBox images={BREAD_FRAME_IMAGES} insets={BREAD_FRAME_INSETS} style={styles.cardBubble}>
+          <ThemedText themeColor="text">{text}</ThemedText>
+        </NineSliceBox>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.row, isUser && styles.rowUser]}>
-      <ThemedView type={themeColor} style={variant === 'blob' ? styles.blobBubble : styles.cardBubble}>
-        {variant === 'blob' && <View style={styles.highlight} pointerEvents="none" />}
+      <ThemedView type={themeColor} style={styles.blobBubble}>
+        <View style={styles.highlight} pointerEvents="none" />
         <ThemedText themeColor={isUser ? 'background' : 'text'}>{text}</ThemedText>
       </ThemedView>
     </View>
@@ -41,9 +53,6 @@ const styles = StyleSheet.create({
   },
   cardBubble: {
     maxWidth: '85%',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.three,
   },
   highlight: {
     position: 'absolute',
