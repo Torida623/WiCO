@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -13,11 +13,12 @@ export type TagChipsProps = {
   options: TagChipOption[];
   selected: string | null;
   onSelect: (value: string | null) => void;
+  style?: StyleProp<ViewStyle>;
 };
 
-export function TagChips({ options, selected, onSelect }: TagChipsProps) {
+export function TagChips({ options, selected, onSelect, style }: TagChipsProps) {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, style]}>
       {options.map((option) => {
         const isSelected = option.value === selected;
         return (
@@ -42,6 +43,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: Spacing.two,
   },
   chip: {

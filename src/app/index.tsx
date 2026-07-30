@@ -1,15 +1,25 @@
 import Constants from 'expo-constants';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleProp,
+  StyleSheet,
+  TextInput,
+  View,
+  ViewStyle,
+} from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChatBubble } from '@/components/chat/chat-bubble';
 import { ChoiceButtons } from '@/components/chat/choice-buttons';
 import { MascotAvatar, MascotPose } from '@/components/chat/mascot-avatar';
+import { MoodTray } from '@/components/chat/mood-tray';
 import { RecipeBook } from '@/components/chat/recipe-book';
-import { TagChips } from '@/components/chat/tag-chips';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import {
@@ -17,20 +27,31 @@ import {
   COOKING_TIME_OPTIONS,
   ENTRY_POINT_OPTIONS,
   EntryPoint,
+  FORMAT_TAG_OPTIONS,
   GENRE_TAG_OPTIONS,
   SHOPPING_OPTIONS,
   StepId,
   TASTE_TAG_OPTIONS,
+  TEMPERATURE_TAG_OPTIONS,
   getNextStep,
 } from '@/constants/meal-flow';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { isDaytime } from '@/constants/time-of-day';
+import { useLoopingBgm } from '@/hooks/use-looping-bgm';
 import { useTheme } from '@/hooks/use-theme';
 
 const ROOM_BACKGROUND = require('@/assets/images/perokoko-room-bg.jpg');
 const ROOM_BACKGROUND_NO_BOOK = require('@/assets/images/perokoko-room-bg-nobook.jpg');
 const ROOM_BACKGROUND_NIGHT = require('@/assets/images/perokoko-room-bg-night.jpg');
 const ROOM_BACKGROUND_NIGHT_NO_BOOK = require('@/assets/images/perokoko-room-bg-night-nobook.jpg');
+
+// Same track regardless of time of day; fadeStartMs is tuned to its 1:03 runtime.
+const MEAL_BGM = require('@/assets/audio/meal-bgm.mp3');
+const MEAL_BGM_VOLUME = 0.4;
+
+const OK_BUTTON_IMAGE = require('@/assets/images/ui/ok-button.png');
+const OK_BUTTON_SIZE = 72;
+const MEAL_BGM_FADE_START_MS = 61_800;
 
 function getApiUrl(path: string): string {
   const hostUri = Constants.expoConfig?.hostUri;
@@ -103,15 +124,19 @@ export default function MealChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
 
   const [textValue, setTextValue] = useState('');
-  const [moodValue, setMoodValue] = useState('');
+  const [freeMoodValue, setFreeMoodValue] = useState('');
   const [genreTag, setGenreTag] = useState<string | null>(null);
+  const [formatTag, setFormatTag] = useState<string | null>(null);
   const [tasteTag, setTasteTag] = useState<string | null>(null);
+  const [temperatureTag, setTemperatureTag] = useState<string | null>(null);
   const [allergyValue, setAllergyValue] = useState('');
   const [showRevisionInput, setShowRevisionInput] = useState(false);
+  const [showMoodTray, setShowMoodTray] = useState(false);
   const lastProposalRef = useRef('');
   const messageIdRef = useRef(1);
   const mascotOpacity = useSharedValue(1);
   const daytime = useRef(isDaytime()).current;
+  useLoopingBgm(MEAL_BGM, MEAL_BGM_VOLUME, true, MEAL_BGM_FADE_START_MS, 0);
 
   const roomBackground = daytime
     ? currentMessage.kind === 'book'
@@ -200,17 +225,21 @@ export default function MealChatScreen() {
   }
 
   function handleMoodAllergySubmit() {
-    const moodParts = [genreTag, tasteTag, moodValue.trim()].filter((part): part is string => Boolean(part));
-    const mood = moodParts.join('・');
+    const mood = [genreTag, formatTag, tasteTag, temperatureTag, freeMoodValue.trim()]
+      .filter((part): part is string => Boolean(part))
+      .join('・');
     const allergy = allergyValue.trim();
     const parts: string[] = [];
     if (mood) parts.push(`気分: ${mood}`);
     if (allergy) parts.push(`アレルギー・苦手: ${allergy}`);
     advance({ ...answers, mood, allergy }, parts.length ? parts.join(' / ') : '（特になし）');
-    setMoodValue('');
     setGenreTag(null);
+    setFormatTag(null);
     setTasteTag(null);
+    setTemperatureTag(null);
+    setFreeMoodValue('');
     setAllergyValue('');
+    setShowMoodTray(false);
   }
 
   function handleRevisionSubmit() {
@@ -231,11 +260,14 @@ export default function MealChatScreen() {
     setStep('entryPoint');
     setAnswers({});
     setTextValue('');
-    setMoodValue('');
     setGenreTag(null);
+    setFormatTag(null);
     setTasteTag(null);
+    setTemperatureTag(null);
+    setFreeMoodValue('');
     setAllergyValue('');
     setShowRevisionInput(false);
+    setShowMoodTray(false);
     lastProposalRef.current = '';
   }
 
@@ -306,13 +338,17 @@ export default function MealChatScreen() {
             )}
 
             {step === 'people' && (
-              <TextRow
-                value={textValue}
-                onChangeText={setTextValue}
-                onSubmit={handlePeopleSubmit}
-                placeholder="人数を教えてね！"
-                keyboardType="number-pad"
-              />
+              <View style={styles.peopleRow}>
+                <TextRow
+                  value={textValue}
+                  onChangeText={setTextValue}
+                  onSubmit={handlePeopleSubmit}
+                  placeholder="人数を教えてね！"
+                  keyboardType="number-pad"
+                  centered
+                  stacked
+                />
+              </View>
             )}
 
             {step === 'ingredients' && (
@@ -326,27 +362,42 @@ export default function MealChatScreen() {
 
             {step === 'moodAndAllergy' && (
               <View style={styles.dualTextContainer}>
-                <TagChips options={GENRE_TAG_OPTIONS} selected={genreTag} onSelect={setGenreTag} />
-                <TagChips options={TASTE_TAG_OPTIONS} selected={tasteTag} onSelect={setTasteTag} />
-                <ThemedView type="backgroundElement" style={styles.textInputWrapper}>
-                  <TextInput
-                    value={moodValue}
-                    onChangeText={setMoodValue}
-                    placeholder="和洋中・あっさり・麺料理など"
-                    placeholderTextColor={theme.textSecondary}
-                    style={[styles.textInput, { color: theme.text }]}
-                  />
-                </ThemedView>
-                <ThemedView type="backgroundElement" style={styles.textInputWrapper}>
-                  <TextInput
-                    value={allergyValue}
-                    onChangeText={setAllergyValue}
-                    placeholder="アレルギー・苦手な食材があれば！"
-                    placeholderTextColor={theme.textSecondary}
-                    style={[styles.textInput, { color: theme.text }]}
-                  />
-                </ThemedView>
-                <SendButton onPress={handleMoodAllergySubmit} />
+                {!showMoodTray && (
+                  <>
+                    <Pressable onPress={() => setShowMoodTray((current) => !current)}>
+                      {({ pressed }) => (
+                        <ThemedView
+                          type="backgroundElement"
+                          style={[styles.textInputWrapper, pressed && styles.pressed]}>
+                          <ThemedText
+                            style={[styles.textInput, styles.textInputCentered]}
+                            themeColor={
+                              genreTag || formatTag || tasteTag || temperatureTag || freeMoodValue
+                                ? 'text'
+                                : 'textSecondary'
+                            }>
+                            {[genreTag, formatTag, tasteTag, temperatureTag, freeMoodValue.trim()]
+                              .filter(Boolean)
+                              .join('・') || '今日の気分'}
+                          </ThemedText>
+                        </ThemedView>
+                      )}
+                    </Pressable>
+                    <ThemedView type="backgroundElement" style={styles.textInputWrapper}>
+                      <TextInput
+                        value={allergyValue}
+                        onChangeText={setAllergyValue}
+                        placeholder="アレルギー・苦手な食材"
+                        placeholderTextColor={theme.textSecondary}
+                        style={[styles.textInput, styles.textInputCentered, { color: theme.text }]}
+                      />
+                    </ThemedView>
+                  </>
+                )}
+                <SendButton
+                  onPress={showMoodTray ? () => setShowMoodTray(false) : handleMoodAllergySubmit}
+                  style={styles.moodSendButton}
+                />
               </View>
             )}
 
@@ -385,6 +436,29 @@ export default function MealChatScreen() {
           </View>
         </SafeAreaView>
       </KeyboardAvoidingView>
+
+      {step === 'moodAndAllergy' && showMoodTray && (
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowMoodTray(false)} />
+      )}
+      {step === 'moodAndAllergy' && (
+        <MoodTray
+          visible={showMoodTray}
+          genreOptions={GENRE_TAG_OPTIONS}
+          formatOptions={FORMAT_TAG_OPTIONS}
+          tasteOptions={TASTE_TAG_OPTIONS}
+          temperatureOptions={TEMPERATURE_TAG_OPTIONS}
+          selectedGenre={genreTag}
+          selectedFormat={formatTag}
+          selectedTaste={tasteTag}
+          selectedTemperature={temperatureTag}
+          onSelectGenre={setGenreTag}
+          onSelectFormat={setFormatTag}
+          onSelectTaste={setTasteTag}
+          onSelectTemperature={setTemperatureTag}
+          freeText={freeMoodValue}
+          onChangeFreeText={setFreeMoodValue}
+        />
+      )}
     </View>
   );
 }
@@ -395,24 +469,30 @@ function TextRow({
   onSubmit,
   placeholder,
   keyboardType,
+  centered,
+  stacked,
 }: {
   value: string;
   onChangeText: (text: string) => void;
   onSubmit: () => void;
   placeholder: string;
   keyboardType?: 'default' | 'number-pad';
+  centered?: boolean;
+  stacked?: boolean;
 }) {
   const theme = useTheme();
   return (
-    <View style={styles.textRow}>
-      <ThemedView type="backgroundElement" style={[styles.textInputWrapper, styles.flex]}>
+    <View style={[styles.textRow, stacked && styles.textRowStacked]}>
+      <ThemedView
+        type="backgroundElement"
+        style={[styles.textInputWrapper, stacked ? styles.textInputWrapperStacked : styles.flex]}>
         <TextInput
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
           placeholderTextColor={theme.textSecondary}
           keyboardType={keyboardType}
-          style={[styles.textInput, { color: theme.text }]}
+          style={[styles.textInput, { color: theme.text }, centered && styles.textInputCentered]}
           onSubmitEditing={onSubmit}
         />
       </ThemedView>
@@ -421,15 +501,15 @@ function TextRow({
   );
 }
 
-function SendButton({ onPress }: { onPress: () => void }) {
+function SendButton({ onPress, style }: { onPress: () => void; style?: StyleProp<ViewStyle> }) {
   return (
-    <Pressable onPress={onPress}>
+    <Pressable onPress={onPress} style={style}>
       {({ pressed }) => (
-        <ThemedView type="accent" style={[styles.sendButton, pressed && styles.pressed]}>
-          <ThemedText type="smallBold" themeColor="background">
-            OK
-          </ThemedText>
-        </ThemedView>
+        <Image
+          source={OK_BUTTON_IMAGE}
+          style={[styles.sendButton, pressed && styles.pressed]}
+          contentFit="contain"
+        />
       )}
     </Pressable>
   );
@@ -478,9 +558,16 @@ const styles = StyleSheet.create({
   inputAreaDisabled: {
     opacity: 0.4,
   },
+  peopleRow: {
+    marginTop: -Spacing.four,
+  },
   textRow: {
     flexDirection: 'row',
     gap: Spacing.two,
+    alignItems: 'center',
+  },
+  textRowStacked: {
+    flexDirection: 'column',
     alignItems: 'center',
   },
   dualTextContainer: {
@@ -491,13 +578,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },
+  textInputWrapperStacked: {
+    alignSelf: 'stretch',
+  },
   textInput: {
     fontSize: 16,
   },
+  textInputCentered: {
+    textAlign: 'center',
+  },
   sendButton: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.three,
+    width: OK_BUTTON_SIZE,
+    height: OK_BUTTON_SIZE,
+  },
+  moodSendButton: {
+    alignSelf: 'center',
   },
   proposalButtonRow: {
     flexDirection: 'row',

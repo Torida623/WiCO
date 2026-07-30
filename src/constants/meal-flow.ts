@@ -63,16 +63,26 @@ export const GENRE_TAG_OPTIONS: { value: string; label: string }[] = [
   { value: '和食', label: '和食' },
   { value: '洋食', label: '洋食' },
   { value: '中華', label: '中華' },
+];
+
+export const FORMAT_TAG_OPTIONS: { value: string; label: string }[] = [
+  { value: 'ごはん', label: 'ごはん' },
+  { value: 'パン', label: 'パン' },
   { value: '麺・粉物', label: '麺・粉物' },
-  { value: 'その他', label: 'その他' },
+  { value: '鍋', label: '鍋' },
 ];
 
 export const TASTE_TAG_OPTIONS: { value: string; label: string }[] = [
   { value: 'あっさり', label: 'あっさり' },
-  { value: 'こってり', label: 'こってり' },
-  { value: 'さっぱり', label: 'さっぱり' },
+  { value: '濃いめ', label: '濃いめ' },
   { value: 'ピリ辛', label: 'ピリ辛' },
   { value: '甘辛', label: '甘辛' },
+  { value: '酸味', label: '酸味' },
+];
+
+export const TEMPERATURE_TAG_OPTIONS: { value: string; label: string }[] = [
+  { value: '温', label: '温' },
+  { value: '冷', label: '冷' },
 ];
 
 export function getNextStep(current: StepId, answers: Answers): StepId {

@@ -18,7 +18,11 @@ export function ChatBubble({ sender, text, variant }: ChatBubbleProps) {
   if (resolvedVariant === 'card') {
     return (
       <View style={styles.row}>
-        <NineSliceBox images={BREAD_FRAME_IMAGES} insets={BREAD_FRAME_INSETS} style={styles.cardBubble}>
+        <NineSliceBox
+          images={BREAD_FRAME_IMAGES}
+          insets={BREAD_FRAME_INSETS}
+          style={styles.cardBubble}
+          contentStyle={styles.cardContent}>
           <ThemedText themeColor="text" style={styles.cardText}>
             {text}
           </ThemedText>
@@ -54,7 +58,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cardBubble: {
-    maxWidth: '85%',
+    maxWidth: '94%',
+  },
+  cardContent: {
+    paddingLeft: BREAD_FRAME_INSETS.left + 10,
+    paddingRight: BREAD_FRAME_INSETS.right + 10,
   },
   cardText: {
     marginBottom: Spacing.two * 1.5,

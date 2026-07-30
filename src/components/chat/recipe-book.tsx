@@ -17,8 +17,13 @@ import { Fonts, Spacing } from '@/constants/theme';
 const CLOSED_BOOK = require('@/assets/images/mascot/wico-book-closed.png');
 const OPEN_BOOK_FLAT = require('@/assets/images/mascot/wico-book-open-flat.png');
 const OPEN_BOOK_TURNING = require('@/assets/images/mascot/wico-book-turning.png');
+const NAV_BACK_IMAGE = require('@/assets/images/ui/nav-back.png');
+const NAV_FORWARD_IMAGE = require('@/assets/images/ui/nav-forward.png');
 
 const OPEN_BOOK_ASPECT_RATIO = 1402 / 1122;
+const NAV_IMAGE_ASPECT_RATIO = 1536 / 1024;
+const NAV_BUTTON_WIDTH = 140;
+const NAV_BUTTON_HEIGHT = NAV_BUTTON_WIDTH / NAV_IMAGE_ASPECT_RATIO;
 const STEPS_MARKER = '【作り方】';
 const PAGE_CHAR_BUDGET = 170;
 
@@ -108,6 +113,22 @@ export function RecipeBook({ content, onRestart }: RecipeBookProps) {
     }, 600);
   }
 
+  function goToPreviousPage() {
+    if (transitioning || pageIndex <= 0) return;
+    setTransitioning(true);
+
+    pageContentOpacity.value = withTiming(0, { duration: 350, easing: Easing.in(Easing.quad) });
+    turnOpacity.value = withTiming(1, { duration: 550, easing: Easing.out(Easing.quad) });
+
+    setTimeout(() => {
+      setPageIndex((i) => i - 1);
+      pageScrollRef.current?.scrollTo({ y: 0, animated: false });
+      turnOpacity.value = withTiming(0, { duration: 650, easing: Easing.in(Easing.quad) });
+      pageContentOpacity.value = withTiming(1, { duration: 750, easing: Easing.out(Easing.quad) });
+      setTransitioning(false);
+    }, 600);
+  }
+
   const closedStyle = useAnimatedStyle(() => ({
     opacity: closedOpacity.value,
     transform: [{ scale: closedScale.value }],
@@ -158,16 +179,35 @@ export function RecipeBook({ content, onRestart }: RecipeBookProps) {
         </Animated.View>
       )}
 
-      {opened && hasMorePages && (
-        <Pressable onPress={goToNextPage} disabled={transitioning}>
-          {({ pressed }) => (
-            <ThemedView type="accent" style={[styles.nextButton, pressed && styles.pressed]}>
-              <ThemedText type="smallBold" themeColor="background">
-                つづきを見る ▶
-              </ThemedText>
-            </ThemedView>
-          )}
-        </Pressable>
+      {opened && (
+        <View style={styles.pageNavRow}>
+          <View style={styles.pageNavSlot}>
+            {pageIndex > 0 && (
+              <Pressable onPress={goToPreviousPage} disabled={transitioning}>
+                {({ pressed }) => (
+                  <Image
+                    source={NAV_BACK_IMAGE}
+                    style={[styles.pageNavImage, pressed && styles.pressed]}
+                    contentFit="contain"
+                  />
+                )}
+              </Pressable>
+            )}
+          </View>
+          <View style={styles.pageNavSlot}>
+            {hasMorePages && (
+              <Pressable onPress={goToNextPage} disabled={transitioning}>
+                {({ pressed }) => (
+                  <Image
+                    source={NAV_FORWARD_IMAGE}
+                    style={[styles.pageNavImage, pressed && styles.pressed]}
+                    contentFit="contain"
+                  />
+                )}
+              </Pressable>
+            )}
+          </View>
+        </View>
       )}
 
       {opened && !hasMorePages && (
@@ -235,10 +275,18 @@ const styles = StyleSheet.create({
   hint: {
     fontWeight: '700',
   },
-  nextButton: {
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.four,
+  pageNavRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: -Spacing.four,
+  },
+  pageNavSlot: {
+    minWidth: 1,
+  },
+  pageNavImage: {
+    width: NAV_BUTTON_WIDTH,
+    height: NAV_BUTTON_HEIGHT,
   },
   restartButton: {
     paddingHorizontal: Spacing.four,

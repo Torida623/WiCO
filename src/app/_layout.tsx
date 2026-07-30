@@ -18,7 +18,7 @@ const TITLE_BGM_VOLUME = 0.4;
 
 // fadeStartMs is tuned per track: just before that track's actual runtime,
 // so the loop's fade-out lands on the real ending instead of cutting it off.
-const DAY_BGM = { source: require('@/assets/audio/title-bgm.mp3'), fadeStartMs: 75_000, fadeInMs: 900 }; // 1:17 track
+const DAY_BGM = { source: require('@/assets/audio/title-bgm.mp3'), fadeStartMs: 75_000, fadeInMs: 600 }; // 1:17 track
 const NIGHT_BGM = { source: require('@/assets/audio/night-bgm.mp3'), fadeStartMs: 115_000, fadeInMs: 0 }; // 1:57 track
 
 type Stage = 'entrance' | 'menu' | 'app';
