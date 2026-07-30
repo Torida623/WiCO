@@ -9,22 +9,28 @@ import { ChatBubble } from '@/components/chat/chat-bubble';
 import { ChoiceButtons } from '@/components/chat/choice-buttons';
 import { MascotAvatar, MascotPose } from '@/components/chat/mascot-avatar';
 import { RecipeBook } from '@/components/chat/recipe-book';
+import { TagChips } from '@/components/chat/tag-chips';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useTheme } from '@/hooks/use-theme';
 import {
   Answers,
   COOKING_TIME_OPTIONS,
   ENTRY_POINT_OPTIONS,
   EntryPoint,
+  GENRE_TAG_OPTIONS,
   SHOPPING_OPTIONS,
   StepId,
+  TASTE_TAG_OPTIONS,
   getNextStep,
 } from '@/constants/meal-flow';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { isDaytime } from '@/constants/time-of-day';
+import { useTheme } from '@/hooks/use-theme';
 
 const ROOM_BACKGROUND = require('@/assets/images/perokoko-room-bg.jpg');
 const ROOM_BACKGROUND_NO_BOOK = require('@/assets/images/perokoko-room-bg-nobook.jpg');
+const ROOM_BACKGROUND_NIGHT = require('@/assets/images/perokoko-room-bg-night.jpg');
+const ROOM_BACKGROUND_NIGHT_NO_BOOK = require('@/assets/images/perokoko-room-bg-night-nobook.jpg');
 
 function getApiUrl(path: string): string {
   const hostUri = Constants.expoConfig?.hostUri;
@@ -48,14 +54,13 @@ type Message =
       sender: 'ai' | 'user';
       text: string;
       mascotPose?: MascotPose;
-      bubbleVariant?: 'blob' | 'card';
     }
   | { id: string; kind: 'book'; sender: 'ai'; bookContent: string };
 
 const MEAL_REACTION: Record<EntryPoint, string> = {
-  breakfast: 'もちろん！朝ごはんを考えよう！',
-  lunch: 'もちろん！お昼ごはんを考えよう！',
-  dinner: 'もちろん！晩ごはんを考えよう！',
+  breakfast: 'もちろん！朝ごはんだね！',
+  lunch: 'もちろん！お昼ごはんだね！',
+  dinner: 'もちろん！晩ごはんだね！',
   aiRecommend: 'まかせて！素敵な献立を一緒に考えよう！',
   fridge: 'いいね！冷蔵庫にある食材から考えよう！',
 };
@@ -63,9 +68,9 @@ const MEAL_REACTION: Record<EntryPoint, string> = {
 function getStepMessage(step: Exclude<StepId, 'proposal' | 'final'>, answers: Answers): string {
   switch (step) {
     case 'entryPoint':
-      return 'やあ！今日はどんなごはんにする？';
+      return 'やあ！\n今日はどんなごはんにする？';
     case 'people':
-      return `${MEAL_REACTION[answers.entryPoint!]}今日は何人で食べるの？`;
+      return `${MEAL_REACTION[answers.entryPoint!]}\n今日は何人で食べるの？`;
     case 'cookingTime':
       return `${answers.people}人分だね！どれくらい時間をかけられそう？`;
     case 'moodAndAllergy':
@@ -73,7 +78,7 @@ function getStepMessage(step: Exclude<StepId, 'proposal' | 'final'>, answers: An
         const timeLabel = answers.cookingTime === 'relaxed' ? '時間をかけて' : 'ぱぱっと';
         return `${timeLabel}作るんだね！どんなものが食べたいかな？アレルギーや苦手な食材があったら教えてね！`;
       }
-      return `${answers.people}人で食べるんだね！どんなものが食べたいかな？アレルギーや苦手な食材があったら教えてね！`;
+      return `${answers.people}人で食べるんだ！OKだよ！\n何か食べたいものはある？\nアレルギーや苦手な食材があったら、それも教えてね！`;
     case 'ingredients':
       return 'OK！家にある食材や早めに使いたいものがあれば教えてほしいな！';
     case 'shopping':
@@ -99,11 +104,22 @@ export default function MealChatScreen() {
 
   const [textValue, setTextValue] = useState('');
   const [moodValue, setMoodValue] = useState('');
+  const [genreTag, setGenreTag] = useState<string | null>(null);
+  const [tasteTag, setTasteTag] = useState<string | null>(null);
   const [allergyValue, setAllergyValue] = useState('');
   const [showRevisionInput, setShowRevisionInput] = useState(false);
   const lastProposalRef = useRef('');
   const messageIdRef = useRef(1);
   const mascotOpacity = useSharedValue(1);
+  const daytime = useRef(isDaytime()).current;
+
+  const roomBackground = daytime
+    ? currentMessage.kind === 'book'
+      ? ROOM_BACKGROUND_NO_BOOK
+      : ROOM_BACKGROUND
+    : currentMessage.kind === 'book'
+      ? ROOM_BACKGROUND_NIGHT_NO_BOOK
+      : ROOM_BACKGROUND_NIGHT;
 
   useEffect(() => {
     mascotOpacity.value = withTiming(currentMessage.kind === 'book' ? 0 : 1, { duration: 450 });
@@ -116,13 +132,8 @@ export default function MealChatScreen() {
     return String(messageIdRef.current);
   }
 
-  function showMessage(
-    sender: 'ai' | 'user',
-    text: string,
-    pose: MascotPose = 'neutral',
-    bubbleVariant: 'blob' | 'card' = 'blob',
-  ) {
-    setCurrentMessage({ id: nextMessageId(), kind: 'text', sender, text, bubbleVariant });
+  function showMessage(sender: 'ai' | 'user', text: string, pose: MascotPose = 'neutral') {
+    setCurrentMessage({ id: nextMessageId(), kind: 'text', sender, text });
     if (sender === 'ai') setMascotPose(pose);
   }
 
@@ -145,7 +156,7 @@ export default function MealChatScreen() {
         isRevision ? lastProposalRef.current : undefined,
       );
       lastProposalRef.current = text;
-      showMessage('ai', text, 'idea', 'card');
+      showMessage('ai', text, 'idea');
       setIsTyping(false);
       setShowRevisionInput(false);
       return;
@@ -189,13 +200,16 @@ export default function MealChatScreen() {
   }
 
   function handleMoodAllergySubmit() {
-    const mood = moodValue.trim();
+    const moodParts = [genreTag, tasteTag, moodValue.trim()].filter((part): part is string => Boolean(part));
+    const mood = moodParts.join('・');
     const allergy = allergyValue.trim();
     const parts: string[] = [];
     if (mood) parts.push(`気分: ${mood}`);
     if (allergy) parts.push(`アレルギー・苦手: ${allergy}`);
     advance({ ...answers, mood, allergy }, parts.length ? parts.join(' / ') : '（特になし）');
     setMoodValue('');
+    setGenreTag(null);
+    setTasteTag(null);
     setAllergyValue('');
   }
 
@@ -218,6 +232,8 @@ export default function MealChatScreen() {
     setAnswers({});
     setTextValue('');
     setMoodValue('');
+    setGenreTag(null);
+    setTasteTag(null);
     setAllergyValue('');
     setShowRevisionInput(false);
     lastProposalRef.current = '';
@@ -226,7 +242,7 @@ export default function MealChatScreen() {
   return (
     <View style={styles.flex}>
       <Image
-        source={currentMessage.kind === 'book' ? ROOM_BACKGROUND_NO_BOOK : ROOM_BACKGROUND}
+        source={roomBackground}
         style={StyleSheet.absoluteFillObject}
         contentFit="cover"
         transition={450}
@@ -243,7 +259,7 @@ export default function MealChatScreen() {
           <View style={styles.messageArea}>
             {isTyping ? (
               <ScrollView contentContainerStyle={styles.messageScrollContent} showsVerticalScrollIndicator={false}>
-                <ChatBubble sender="ai" text="…" />
+                <ChatBubble sender="ai" text="…" variant="blob" />
               </ScrollView>
             ) : currentMessage.kind === 'book' ? (
               <View style={styles.messageContent}>
@@ -251,11 +267,7 @@ export default function MealChatScreen() {
               </View>
             ) : (
               <ScrollView contentContainerStyle={styles.messageScrollContent} showsVerticalScrollIndicator={false}>
-                <ChatBubble
-                  sender={currentMessage.sender}
-                  text={currentMessage.text}
-                  variant={currentMessage.bubbleVariant}
-                />
+                <ChatBubble sender={currentMessage.sender} text={currentMessage.text} />
               </ScrollView>
             )}
           </View>
@@ -298,7 +310,7 @@ export default function MealChatScreen() {
                 value={textValue}
                 onChangeText={setTextValue}
                 onSubmit={handlePeopleSubmit}
-                placeholder="例: 3人分"
+                placeholder="人数を教えてね！"
                 keyboardType="number-pad"
               />
             )}
@@ -314,11 +326,13 @@ export default function MealChatScreen() {
 
             {step === 'moodAndAllergy' && (
               <View style={styles.dualTextContainer}>
+                <TagChips options={GENRE_TAG_OPTIONS} selected={genreTag} onSelect={setGenreTag} />
+                <TagChips options={TASTE_TAG_OPTIONS} selected={tasteTag} onSelect={setTasteTag} />
                 <ThemedView type="backgroundElement" style={styles.textInputWrapper}>
                   <TextInput
                     value={moodValue}
                     onChangeText={setMoodValue}
-                    placeholder="今の気分（任意）"
+                    placeholder="和洋中・あっさり・麺料理など"
                     placeholderTextColor={theme.textSecondary}
                     style={[styles.textInput, { color: theme.text }]}
                   />
@@ -327,7 +341,7 @@ export default function MealChatScreen() {
                   <TextInput
                     value={allergyValue}
                     onChangeText={setAllergyValue}
-                    placeholder="アレルギー・苦手な食材（任意）"
+                    placeholder="アレルギー・苦手な食材があれば！"
                     placeholderTextColor={theme.textSecondary}
                     style={[styles.textInput, { color: theme.text }]}
                   />
@@ -413,7 +427,7 @@ function SendButton({ onPress }: { onPress: () => void }) {
       {({ pressed }) => (
         <ThemedView type="accent" style={[styles.sendButton, pressed && styles.pressed]}>
           <ThemedText type="smallBold" themeColor="background">
-            送信
+            OK
           </ThemedText>
         </ThemedView>
       )}

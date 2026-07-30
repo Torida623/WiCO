@@ -16,15 +16,26 @@ import { BottomTabInset, Spacing } from '@/constants/theme';
 
 const DOOR = require('@/assets/images/entrance-door.jpg');
 const DOOR_WITH_NOTICE = require('@/assets/images/entrance-door-notice.jpg');
+const DOOR_NIGHT = require('@/assets/images/entrance-door-night.jpg');
+const DOOR_NIGHT_WITH_NOTICE = require('@/assets/images/entrance-door-night-notice.jpg');
 const TAP_BUTTON = require('@/assets/images/tap-plate-button.png');
 const TAP_BUTTON_ASPECT_RATIO = 1536 / 1024;
 
 export type EntranceScreenProps = {
   hasNotification?: boolean;
+  isNight?: boolean;
   onEnter: () => void;
 };
 
-export function EntranceScreen({ hasNotification = false, onEnter }: EntranceScreenProps) {
+export function EntranceScreen({ hasNotification = false, isNight = false, onEnter }: EntranceScreenProps) {
+  const doorSource = isNight
+    ? hasNotification
+      ? DOOR_NIGHT_WITH_NOTICE
+      : DOOR_NIGHT
+    : hasNotification
+      ? DOOR_WITH_NOTICE
+      : DOOR;
+
   const tapOpacity = useSharedValue(1);
 
   useEffect(() => {
@@ -48,11 +59,7 @@ export function EntranceScreen({ hasNotification = false, onEnter }: EntranceScr
 
   return (
     <Pressable style={styles.flex} onPress={onEnter}>
-      <Image
-        source={hasNotification ? DOOR_WITH_NOTICE : DOOR}
-        style={StyleSheet.absoluteFillObject}
-        contentFit="cover"
-      />
+      <Image source={doorSource} style={StyleSheet.absoluteFillObject} contentFit="cover" />
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <Animated.View style={tapStyle}>
           <Image source={TAP_BUTTON} style={styles.tapButton} contentFit="contain" />

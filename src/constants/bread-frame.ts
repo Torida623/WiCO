@@ -12,10 +12,13 @@ export const BREAD_FRAME_IMAGES: NineSliceImages = {
   bottomRight: require('@/assets/images/ui/bread-frame/bottom-right.png'),
 };
 
-// Source art is 853x1844 at roughly 3x scale; insets below are in dp.
+// Source art is a square-cut (kaku-gata) loaf, 853x1844 at roughly 3x scale;
+// insets below are in dp. The top slice bakes in extra cream margin on
+// purpose (not just the bare crust) so short bubbles get breathing room
+// without ever squishing the crust texture; the bottom is cropped thin.
 export const BREAD_FRAME_INSETS: NineSliceInsets = {
-  left: 34,
-  top: 134,
-  right: 34,
-  bottom: 50,
+  left: 12,
+  top: 54,
+  right: 12,
+  bottom: 8,
 };

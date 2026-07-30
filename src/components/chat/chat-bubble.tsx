@@ -12,23 +12,25 @@ export type ChatBubbleProps = {
   variant?: 'blob' | 'card';
 };
 
-export function ChatBubble({ sender, text, variant = 'blob' }: ChatBubbleProps) {
-  const isUser = sender === 'user';
-  const themeColor = isUser ? 'accent' : 'backgroundElement';
+export function ChatBubble({ sender, text, variant }: ChatBubbleProps) {
+  const resolvedVariant = variant ?? (sender === 'ai' ? 'card' : 'blob');
 
-  if (variant === 'card') {
+  if (resolvedVariant === 'card') {
     return (
-      <View style={[styles.row, isUser && styles.rowUser]}>
+      <View style={styles.row}>
         <NineSliceBox images={BREAD_FRAME_IMAGES} insets={BREAD_FRAME_INSETS} style={styles.cardBubble}>
-          <ThemedText themeColor="text">{text}</ThemedText>
+          <ThemedText themeColor="text" style={styles.cardText}>
+            {text}
+          </ThemedText>
         </NineSliceBox>
       </View>
     );
   }
 
+  const isUser = sender === 'user';
   return (
     <View style={[styles.row, isUser && styles.rowUser]}>
-      <ThemedView type={themeColor} style={styles.blobBubble}>
+      <ThemedView type={isUser ? 'accent' : 'backgroundElement'} style={styles.blobBubble}>
         <View style={styles.highlight} pointerEvents="none" />
         <ThemedText themeColor={isUser ? 'background' : 'text'}>{text}</ThemedText>
       </ThemedView>
@@ -53,6 +55,9 @@ const styles = StyleSheet.create({
   },
   cardBubble: {
     maxWidth: '85%',
+  },
+  cardText: {
+    marginBottom: Spacing.two * 1.5,
   },
   highlight: {
     position: 'absolute',
