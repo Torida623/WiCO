@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import {
+  Dimensions,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,7 +13,9 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChatBubble } from '@/components/chat/chat-bubble';
@@ -50,22 +53,51 @@ const MEAL_BGM = require('@/assets/audio/meal-bgm.mp3');
 const MEAL_BGM_VOLUME = 0.4;
 
 const OK_BUTTON_IMAGE = require('@/assets/images/ui/ok-button.png');
+const MENU_DECIDED_PLATE_IMAGE = require('@/assets/images/ui/menu-decided-plate.png');
+const SIDE_MENU_BUTTON_IMAGE = require('@/assets/images/ui/menu-button.png');
+const SIDE_MENU_PANEL_IMAGE = require('@/assets/images/ui/side-menu-panel.png');
 const OK_BUTTON_SIZE = 72;
+const SIDE_MENU_BUTTON_SIZE = 60;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 const MEAL_BGM_FADE_START_MS = 61_800;
+
+// Row bounds as a fraction of the panel image's own height, hand-measured
+// from the artwork (perokoko-room-bg style hand-drawn menu, no separate
+// hitbox layer) so each row of the curtain image gets a tappable zone.
+const SIDE_MENU_ROWS = [
+  { label: '献立を考える', top: '20.1%', height: '6.5%', left: '0%', right: '0%' },
+  { label: '料理の思い出', top: '30.1%', height: '7.3%', left: '0%', right: '0%' },
+  { label: 'レシピ研究室', top: '40.7%', height: '7.3%', left: '0%', right: '0%' },
+  { label: 'お買い物ノート', top: '51.2%', height: '7.4%', left: '0%', right: '0%' },
+  { label: 'ペロココの部屋', top: '61.8%', height: '7.3%', left: '0%', right: '0%' },
+  { label: 'お知らせ', top: '74.5%', height: '7%', left: '10%', right: '55%' },
+  { label: '設定', top: '74.5%', height: '7%', left: '50%', right: '10%' },
+] as const;
 
 function getApiUrl(path: string): string {
   const hostUri = Constants.expoConfig?.hostUri;
   return hostUri ? `http://${hostUri}${path}` : path;
 }
 
+const MENU_FETCH_TIMEOUT_MS = 30_000;
+
 async function fetchMenuMessage(mode: 'proposal' | 'final', answers: Answers, proposalText?: string) {
   const res = await fetch(getApiUrl('/api/menu'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mode, answers, proposalText }),
+    signal: AbortSignal.timeout(MENU_FETCH_TIMEOUT_MS),
   });
   const data = await res.json();
+  if (!res.ok) {
+    throw new Error(typeof data.message === 'string' ? data.message : 'AIとの通信に失敗しました。');
+  }
   return data.message as string;
+}
+
+function extractBookContent(text: string): string {
+  const splitIndex = text.indexOf('【材料】');
+  return splitIndex >= 0 ? text.slice(splitIndex) : text;
 }
 
 type Message =
@@ -76,7 +108,8 @@ type Message =
       text: string;
       mascotPose?: MascotPose;
     }
-  | { id: string; kind: 'book'; sender: 'ai'; bookContent: string };
+  | { id: string; kind: 'book'; sender: 'ai'; bookContent: string }
+  | { id: string; kind: 'plate' };
 
 const MEAL_REACTION: Record<EntryPoint, string> = {
   breakfast: 'もちろん！朝ごはんだね！',
@@ -101,6 +134,7 @@ function getStepMessage(step: Exclude<StepId, 'proposal' | 'final'>, answers: An
       }
       return `${answers.people}人で食べるんだ！OKだよ！\n何か食べたいものはある？\nアレルギーや苦手な食材があったら、それも教えてね！`;
     case 'ingredients':
+      if (answers.entryPoint === 'breakfast') return '朝ごはんに使ってもいい食材を教えてほしいな！';
       return 'OK！家にある食材や早めに使いたいものがあれば教えてほしいな！';
     case 'shopping':
       return 'OK！今日は買い物に行けそう？';
@@ -132,9 +166,13 @@ export default function MealChatScreen() {
   const [allergyValue, setAllergyValue] = useState('');
   const [showRevisionInput, setShowRevisionInput] = useState(false);
   const [showMoodTray, setShowMoodTray] = useState(false);
+  const [showSideMenu, setShowSideMenu] = useState(false);
+  const [showingRecipeDetail, setShowingRecipeDetail] = useState(false);
   const lastProposalRef = useRef('');
+  const finalDetailsRef = useRef<{ proposal: string; content: string } | null>(null);
   const messageIdRef = useRef(1);
   const mascotOpacity = useSharedValue(1);
+  const sideMenuTranslateY = useSharedValue(-SCREEN_HEIGHT);
   const daytime = useRef(isDaytime()).current;
   useLoopingBgm(MEAL_BGM, MEAL_BGM_VOLUME, true, MEAL_BGM_FADE_START_MS, 0);
 
@@ -147,8 +185,34 @@ export default function MealChatScreen() {
       : ROOM_BACKGROUND_NIGHT;
 
   useEffect(() => {
-    mascotOpacity.value = withTiming(currentMessage.kind === 'book' ? 0 : 1, { duration: 450 });
+    const hideMascot = currentMessage.kind === 'book' || currentMessage.kind === 'plate';
+    mascotOpacity.value = withTiming(hideMascot ? 0 : 1, { duration: 450 });
   }, [currentMessage.kind, mascotOpacity]);
+
+  useEffect(() => {
+    sideMenuTranslateY.value = withTiming(showSideMenu ? 0 : -SCREEN_HEIGHT, {
+      duration: 420,
+      easing: Easing.out(Easing.quad),
+    });
+  }, [showSideMenu, sideMenuTranslateY]);
+
+  const sideMenuStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: sideMenuTranslateY.value }],
+  }));
+
+  const sideMenuPanGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      sideMenuTranslateY.value = Math.min(0, event.translationY);
+    })
+    .onEnd((event) => {
+      const shouldClose = event.translationY < -100 || event.velocityY < -600;
+      if (shouldClose) {
+        sideMenuTranslateY.value = withTiming(-SCREEN_HEIGHT, { duration: 320, easing: Easing.in(Easing.quad) });
+        scheduleOnRN(setShowSideMenu, false);
+      } else {
+        sideMenuTranslateY.value = withTiming(0, { duration: 260, easing: Easing.out(Easing.quad) });
+      }
+    });
 
   const mascotStyle = useAnimatedStyle(() => ({ opacity: mascotOpacity.value }));
 
@@ -166,45 +230,82 @@ export default function MealChatScreen() {
     setCurrentMessage({ id: nextMessageId(), kind: 'book', sender: 'ai', bookContent });
   }
 
+  function showPlateMessage() {
+    setCurrentMessage({ id: nextMessageId(), kind: 'plate' });
+  }
+
+  async function getFinalDetails(currentAnswers: Answers): Promise<string> {
+    if (finalDetailsRef.current && finalDetailsRef.current.proposal === lastProposalRef.current) {
+      return finalDetailsRef.current.content;
+    }
+    const text = await fetchMenuMessage('final', currentAnswers, lastProposalRef.current);
+    finalDetailsRef.current = { proposal: lastProposalRef.current, content: text };
+    return text;
+  }
+
+  async function handlePreviewRecipe() {
+    setIsTyping(true);
+    try {
+      const text = await getFinalDetails(answers);
+      showMessage('ai', extractBookContent(text));
+      setShowingRecipeDetail(true);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsTyping(false);
+    }
+  }
+
+  function handleBackToProposal() {
+    showMessage('ai', lastProposalRef.current);
+    setShowingRecipeDetail(false);
+  }
+
   async function advance(newAnswers: Answers, userDisplayText: string) {
     showMessage('user', userDisplayText);
+    const previousStep = step;
     const next = getNextStep(step, newAnswers);
     setAnswers(newAnswers);
     setStep(next);
     setIsTyping(true);
 
-    if (next === 'proposal') {
-      const isRevision = Boolean(newAnswers.revisionRequest?.trim());
-      const text = await fetchMenuMessage(
-        'proposal',
-        newAnswers,
-        isRevision ? lastProposalRef.current : undefined,
-      );
-      lastProposalRef.current = text;
-      showMessage('ai', text, 'idea');
-      setIsTyping(false);
-      setShowRevisionInput(false);
-      return;
-    }
-
-    if (next === 'final') {
-      const text = await fetchMenuMessage('final', newAnswers, lastProposalRef.current);
-      const splitIndex = text.indexOf('【材料】');
-      const announcement = splitIndex >= 0 ? text.slice(0, splitIndex).trim() : text;
-      const bookContent = splitIndex >= 0 ? text.slice(splitIndex) : '';
-      showMessage('ai', announcement, 'idea');
-      setIsTyping(false);
-      if (bookContent) {
-        setTimeout(() => showBookMessage(bookContent), 1400);
+    try {
+      if (next === 'proposal') {
+        const isRevision = Boolean(newAnswers.revisionRequest?.trim());
+        const text = await fetchMenuMessage(
+          'proposal',
+          newAnswers,
+          isRevision ? lastProposalRef.current : undefined,
+        );
+        lastProposalRef.current = text;
+        showMessage('ai', text);
+        setShowRevisionInput(false);
+        setShowingRecipeDetail(false);
+        return;
       }
-      return;
-    }
 
-    const delay = 600 + Math.random() * 500;
-    setTimeout(() => {
+      if (next === 'final') {
+        setMascotPose('thinking');
+        const text = await getFinalDetails(newAnswers);
+        const bookContent = extractBookContent(text);
+        setMascotPose('idea');
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        showPlateMessage();
+        setTimeout(() => showBookMessage(bookContent), 1400);
+        return;
+      }
+
+      const delay = 600 + Math.random() * 500;
+      await new Promise((resolve) => setTimeout(resolve, delay));
       showMessage('ai', getStepMessage(next, newAnswers));
+    } catch (error) {
+      console.error(error);
+      setMascotPose('neutral');
+      setStep(previousStep);
+      showMessage('ai', 'あれ、うまく繋がらなかったみたい…！もう一度試してみてくれる？');
+    } finally {
       setIsTyping(false);
-    }, delay);
+    }
   }
 
   function handleChoice(key: keyof Answers, value: string, label: string) {
@@ -220,6 +321,7 @@ export default function MealChatScreen() {
 
   function handleIngredientsSubmit() {
     const value = textValue.trim();
+    if (answers.entryPoint === 'breakfast' && !value) return;
     advance({ ...answers, ingredients: value }, value || '（特になし）');
     setTextValue('');
   }
@@ -268,7 +370,9 @@ export default function MealChatScreen() {
     setAllergyValue('');
     setShowRevisionInput(false);
     setShowMoodTray(false);
+    setShowingRecipeDetail(false);
     lastProposalRef.current = '';
+    finalDetailsRef.current = null;
   }
 
   return (
@@ -283,27 +387,44 @@ export default function MealChatScreen() {
         <MascotAvatar pose={mascotPose} style={styles.roomMascot} />
       </Animated.View>
 
+      <SafeAreaView style={styles.sideMenuButtonSafeArea} edges={['top', 'left']} pointerEvents="box-none">
+        <Pressable onPress={() => setShowSideMenu(true)} style={styles.sideMenuButtonPressable}>
+          {({ pressed }) => (
+            <Image
+              source={SIDE_MENU_BUTTON_IMAGE}
+              style={[styles.sideMenuButtonImage, pressed && styles.pressed]}
+              contentFit="contain"
+            />
+          )}
+        </Pressable>
+      </SafeAreaView>
+
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Spacing.six}>
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
           <View style={styles.messageArea}>
-            {isTyping ? (
+            {isTyping && step === 'final' ? null : isTyping ? (
               <ScrollView contentContainerStyle={styles.messageScrollContent} showsVerticalScrollIndicator={false}>
                 <ChatBubble sender="ai" text="…" variant="blob" />
               </ScrollView>
+            ) : currentMessage.kind === 'plate' ? (
+              <View style={styles.plateContent}>
+                <Image source={MENU_DECIDED_PLATE_IMAGE} style={styles.plateImage} contentFit="contain" />
+              </View>
             ) : currentMessage.kind === 'book' ? (
               <View style={styles.messageContent}>
                 <RecipeBook content={currentMessage.bookContent} onRestart={handleRestart} />
               </View>
             ) : (
               <ScrollView contentContainerStyle={styles.messageScrollContent} showsVerticalScrollIndicator={false}>
-                <ChatBubble sender={currentMessage.sender} text={currentMessage.text} />
+                <ChatBubble sender={currentMessage.sender} text={currentMessage.text} style={styles.dialogueOffset} />
               </ScrollView>
             )}
           </View>
 
+          {currentMessage.kind !== 'plate' && (
           <View
             style={[styles.inputArea, isTyping && styles.inputAreaDisabled]}
             pointerEvents={isTyping ? 'none' : 'auto'}>
@@ -410,30 +531,44 @@ export default function MealChatScreen() {
                   placeholder="変更したい点を教えてね"
                 />
               ) : (
-                <View style={styles.proposalButtonRow}>
-                  <Pressable style={styles.flex} onPress={() => setShowRevisionInput(true)}>
+                <View style={styles.proposalButtonsColumn}>
+                  <Pressable onPress={showingRecipeDetail ? handleBackToProposal : handlePreviewRecipe}>
                     {({ pressed }) => (
                       <ThemedView
                         type="backgroundElement"
                         style={[styles.proposalButton, pressed && styles.pressed]}>
                         <ThemedText type="smallBold" themeColor="text">
-                          変更したい
+                          {showingRecipeDetail ? '戻る' : '詳しい材料とレシピを見てみる'}
                         </ThemedText>
                       </ThemedView>
                     )}
                   </Pressable>
-                  <Pressable style={styles.flex} onPress={handleConfirmMenu}>
-                    {({ pressed }) => (
-                      <ThemedView type="accent" style={[styles.proposalButton, pressed && styles.pressed]}>
-                        <ThemedText type="smallBold" themeColor="background">
-                          この献立にする
-                        </ThemedText>
-                      </ThemedView>
-                    )}
-                  </Pressable>
+                  <View style={styles.proposalButtonRow}>
+                    <Pressable style={styles.flex} onPress={() => setShowRevisionInput(true)}>
+                      {({ pressed }) => (
+                        <ThemedView
+                          type="backgroundElement"
+                          style={[styles.proposalButton, pressed && styles.pressed]}>
+                          <ThemedText type="smallBold" themeColor="text">
+                            変更したい
+                          </ThemedText>
+                        </ThemedView>
+                      )}
+                    </Pressable>
+                    <Pressable style={styles.flex} onPress={handleConfirmMenu}>
+                      {({ pressed }) => (
+                        <ThemedView type="accent" style={[styles.proposalButton, pressed && styles.pressed]}>
+                          <ThemedText type="smallBold" themeColor="background">
+                            この献立にする
+                          </ThemedText>
+                        </ThemedView>
+                      )}
+                    </Pressable>
+                  </View>
                 </View>
               ))}
           </View>
+          )}
         </SafeAreaView>
       </KeyboardAvoidingView>
 
@@ -459,6 +594,26 @@ export default function MealChatScreen() {
           onChangeFreeText={setFreeMoodValue}
         />
       )}
+
+      <GestureDetector gesture={sideMenuPanGesture}>
+        <Animated.View
+          style={[styles.sideMenuPanel, sideMenuStyle]}
+          pointerEvents={showSideMenu ? 'box-none' : 'none'}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowSideMenu(false)}>
+            <Image source={SIDE_MENU_PANEL_IMAGE} style={styles.sideMenuImage} contentFit="cover" />
+          </Pressable>
+          {SIDE_MENU_ROWS.map((row) => (
+            <Pressable
+              key={row.label}
+              onPress={() => setShowSideMenu(false)}
+              style={[
+                styles.sideMenuRowZone,
+                { top: row.top, height: row.height, left: row.left, right: row.right },
+              ]}
+            />
+          ))}
+        </Animated.View>
+      </GestureDetector>
     </View>
   );
 }
@@ -530,8 +685,6 @@ const styles = StyleSheet.create({
   },
   messageContent: {
     flex: 1,
-    justifyContent: 'flex-start',
-    paddingTop: '18%',
     padding: Spacing.three,
   },
   messageScrollContent: {
@@ -539,6 +692,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingTop: '18%',
     padding: Spacing.three,
+  },
+  dialogueOffset: {
+    marginTop: Spacing.four,
+  },
+  plateContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.two,
+  },
+  plateImage: {
+    width: '100%',
+    height: '100%',
   },
   mascotWrapper: {
     ...StyleSheet.absoluteFillObject,
@@ -550,6 +716,32 @@ const styles = StyleSheet.create({
     width: '58%',
     height: undefined,
     aspectRatio: 1,
+  },
+  sideMenuButtonSafeArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    zIndex: 10,
+  },
+  sideMenuButtonPressable: {
+    padding: Spacing.three,
+  },
+  sideMenuButtonImage: {
+    width: SIDE_MENU_BUTTON_SIZE,
+    height: SIDE_MENU_BUTTON_SIZE,
+  },
+  sideMenuPanel: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+  },
+  sideMenuImage: {
+    width: '100%',
+    height: '100%',
+  },
+  sideMenuRowZone: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
   inputArea: {
     padding: Spacing.three,
@@ -593,6 +785,9 @@ const styles = StyleSheet.create({
   },
   moodSendButton: {
     alignSelf: 'center',
+  },
+  proposalButtonsColumn: {
+    gap: Spacing.two,
   },
   proposalButtonRow: {
     flexDirection: 'row',

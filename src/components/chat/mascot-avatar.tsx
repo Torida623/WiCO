@@ -1,10 +1,11 @@
 import { Image } from 'expo-image';
 import { ImageStyle, StyleProp } from 'react-native';
 
-export type MascotPose = 'neutral' | 'idea' | 'eating';
+export type MascotPose = 'neutral' | 'thinking' | 'idea' | 'eating';
 
 const MASCOT_SOURCES: Record<MascotPose, number> = {
   neutral: require('@/assets/images/mascot/perokoko-neutral.png'),
+  thinking: require('@/assets/images/mascot/perokoko-thinking.png'),
   idea: require('@/assets/images/mascot/perokoko-idea.png'),
   eating: require('@/assets/images/mascot/perokoko-eating.png'),
 };

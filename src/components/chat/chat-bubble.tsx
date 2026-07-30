@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -10,14 +10,15 @@ export type ChatBubbleProps = {
   sender: 'ai' | 'user';
   text: string;
   variant?: 'blob' | 'card';
+  style?: StyleProp<ViewStyle>;
 };
 
-export function ChatBubble({ sender, text, variant }: ChatBubbleProps) {
+export function ChatBubble({ sender, text, variant, style }: ChatBubbleProps) {
   const resolvedVariant = variant ?? (sender === 'ai' ? 'card' : 'blob');
 
   if (resolvedVariant === 'card') {
     return (
-      <View style={styles.row}>
+      <View style={[styles.row, style]}>
         <NineSliceBox
           images={BREAD_FRAME_IMAGES}
           insets={BREAD_FRAME_INSETS}
@@ -33,7 +34,7 @@ export function ChatBubble({ sender, text, variant }: ChatBubbleProps) {
 
   const isUser = sender === 'user';
   return (
-    <View style={[styles.row, isUser && styles.rowUser]}>
+    <View style={[styles.row, isUser && styles.rowUser, style]}>
       <ThemedView type={isUser ? 'accent' : 'backgroundElement'} style={styles.blobBubble}>
         <View style={styles.highlight} pointerEvents="none" />
         <ThemedText themeColor={isUser ? 'background' : 'text'}>{text}</ThemedText>

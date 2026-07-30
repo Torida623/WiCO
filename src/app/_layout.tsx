@@ -2,6 +2,7 @@ import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -43,17 +44,22 @@ export default function TabLayout() {
   const fadeStyle = useAnimatedStyle(() => ({ opacity: fadeOpacity.value }));
 
   return (
-    <ThemeProvider value={DefaultTheme}>
-      <AnimatedSplashOverlay />
-      {stage === 'entrance' && <EntranceScreen isNight={!daytime} onEnter={() => transitionTo('menu')} />}
-      {stage === 'menu' && <TitleMenuScreen onSelectMenuProposal={() => transitionTo('app')} />}
-      {stage === 'app' && <AppTabs />}
-      <Animated.View pointerEvents="none" style={[styles.fadeOverlay, fadeStyle]} />
-    </ThemeProvider>
+    <GestureHandlerRootView style={styles.flex}>
+      <ThemeProvider value={DefaultTheme}>
+        <AnimatedSplashOverlay />
+        {stage === 'entrance' && <EntranceScreen isNight={!daytime} onEnter={() => transitionTo('menu')} />}
+        {stage === 'menu' && <TitleMenuScreen onSelectMenuProposal={() => transitionTo('app')} />}
+        {stage === 'app' && <AppTabs />}
+        <Animated.View pointerEvents="none" style={[styles.fadeOverlay, fadeStyle]} />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   fadeOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#FFFFFF',

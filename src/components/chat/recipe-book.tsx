@@ -151,67 +151,69 @@ export function RecipeBook({ content, onRestart }: RecipeBookProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.stack}>
-        <Animated.View style={[styles.layer, openStyle]}>
-          <Image source={OPEN_BOOK_FLAT} style={styles.bookImage} contentFit="contain" />
-          <Animated.View style={[styles.textOverlay, pageContentStyle]}>
-            <ScrollView ref={pageScrollRef} contentContainerStyle={styles.textScrollContent}>
-              <ThemedText style={styles.recipeText}>{pages[pageIndex]}</ThemedText>
-            </ScrollView>
+      <View style={styles.bookArea}>
+        <View style={styles.stack}>
+          <Animated.View style={[styles.layer, openStyle]}>
+            <Image source={OPEN_BOOK_FLAT} style={styles.bookImage} contentFit="contain" />
+            <Animated.View style={[styles.textOverlay, pageContentStyle]}>
+              <ScrollView ref={pageScrollRef} contentContainerStyle={styles.textScrollContent}>
+                <ThemedText style={styles.recipeText}>{pages[pageIndex]}</ThemedText>
+              </ScrollView>
+            </Animated.View>
+            <Animated.View style={[styles.layer, turnStyle]} pointerEvents="none">
+              <Image source={OPEN_BOOK_TURNING} style={styles.bookImage} contentFit="contain" />
+            </Animated.View>
           </Animated.View>
-          <Animated.View style={[styles.layer, turnStyle]} pointerEvents="none">
-            <Image source={OPEN_BOOK_TURNING} style={styles.bookImage} contentFit="contain" />
-          </Animated.View>
-        </Animated.View>
 
-        <Animated.View style={[styles.layer, closedStyle]} pointerEvents={opened ? 'none' : 'auto'}>
-          <Pressable onPress={handleOpen} style={styles.layer}>
-            <Image source={CLOSED_BOOK} style={styles.bookImage} contentFit="contain" />
-          </Pressable>
-        </Animated.View>
+          <Animated.View style={[styles.layer, closedStyle]} pointerEvents={opened ? 'none' : 'auto'}>
+            <Pressable onPress={handleOpen} style={styles.layer}>
+              <Image source={CLOSED_BOOK} style={styles.bookImage} contentFit="contain" />
+            </Pressable>
+          </Animated.View>
+        </View>
+
+        {!opened && (
+          <Animated.View style={hintStyle}>
+            <ThemedText type="small" themeColor="text" style={styles.hint}>
+              タップして開く
+            </ThemedText>
+          </Animated.View>
+        )}
+
+        {opened && (
+          <View style={styles.pageNavRow}>
+            <View style={styles.pageNavSlot}>
+              {pageIndex > 0 && (
+                <Pressable onPress={goToPreviousPage} disabled={transitioning}>
+                  {({ pressed }) => (
+                    <Image
+                      source={NAV_BACK_IMAGE}
+                      style={[styles.pageNavImage, pressed && styles.pressed]}
+                      contentFit="contain"
+                    />
+                  )}
+                </Pressable>
+              )}
+            </View>
+            <View style={styles.pageNavSlot}>
+              {hasMorePages && (
+                <Pressable onPress={goToNextPage} disabled={transitioning}>
+                  {({ pressed }) => (
+                    <Image
+                      source={NAV_FORWARD_IMAGE}
+                      style={[styles.pageNavImage, pressed && styles.pressed]}
+                      contentFit="contain"
+                    />
+                  )}
+                </Pressable>
+              )}
+            </View>
+          </View>
+        )}
       </View>
 
-      {!opened && (
-        <Animated.View style={hintStyle}>
-          <ThemedText type="small" themeColor="text" style={styles.hint}>
-            タップして開く
-          </ThemedText>
-        </Animated.View>
-      )}
-
-      {opened && (
-        <View style={styles.pageNavRow}>
-          <View style={styles.pageNavSlot}>
-            {pageIndex > 0 && (
-              <Pressable onPress={goToPreviousPage} disabled={transitioning}>
-                {({ pressed }) => (
-                  <Image
-                    source={NAV_BACK_IMAGE}
-                    style={[styles.pageNavImage, pressed && styles.pressed]}
-                    contentFit="contain"
-                  />
-                )}
-              </Pressable>
-            )}
-          </View>
-          <View style={styles.pageNavSlot}>
-            {hasMorePages && (
-              <Pressable onPress={goToNextPage} disabled={transitioning}>
-                {({ pressed }) => (
-                  <Image
-                    source={NAV_FORWARD_IMAGE}
-                    style={[styles.pageNavImage, pressed && styles.pressed]}
-                    contentFit="contain"
-                  />
-                )}
-              </Pressable>
-            )}
-          </View>
-        </View>
-      )}
-
       {opened && !hasMorePages && (
-        <>
+        <View style={styles.restartButtonsOverlay}>
           <Pressable onPress={() => {}}>
             {({ pressed }) => (
               <ThemedView type="accent" style={[styles.restartButton, pressed && styles.pressed]}>
@@ -231,7 +233,7 @@ export function RecipeBook({ content, onRestart }: RecipeBookProps) {
               </ThemedView>
             )}
           </Pressable>
-        </>
+        </View>
       )}
     </View>
   );
@@ -239,11 +241,17 @@ export function RecipeBook({ content, onRestart }: RecipeBookProps) {
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center',
-    gap: Spacing.two,
+    flex: 1,
     width: '100%',
     maxWidth: 440,
     alignSelf: 'center',
+  },
+  bookArea: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    width: '100%',
   },
   stack: {
     width: '100%',
@@ -287,6 +295,14 @@ const styles = StyleSheet.create({
   pageNavImage: {
     width: NAV_BUTTON_WIDTH,
     height: NAV_BUTTON_HEIGHT,
+  },
+  restartButtonsOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: Spacing.six,
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   restartButton: {
     paddingHorizontal: Spacing.four,
