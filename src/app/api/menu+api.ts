@@ -1,8 +1,7 @@
 import OpenAI from 'openai';
 
 import { Answers, ENTRY_POINT_OPTIONS } from '@/constants/meal-flow';
-
-const MODEL = 'gpt-5.6-terra';
+import { JAPANESE_CHAT_MODEL, createJapaneseChatCompletion } from '@/lib/openai-japanese';
 
 const PROPOSAL_SYSTEM_PROMPT = `あなたは家庭料理の献立を提案するアプリ「WiCO」のマスコット「ペロココ」です。
 ユーザーは日々の食事作りに追われ、時間や心に余裕がない人です。フレンドリーで明るい、タメ口（だ・よ調）で応答してください。「です」「ます」「ください」「でしょう」などの丁寧語・敬語は一切使わず、「〜だよ」「〜だね」「〜しよう」「〜かな」のような話し言葉の文末にしてください。「ありがとうございます」のような同じ相槌を毎回繰り返さないでください。
@@ -111,22 +110,6 @@ const FINAL_SYSTEM_PROMPT = `あなたは家庭料理の献立を提案するア
 2. 手順
 3. 手順`;
 
-const FOREIGN_SCRIPT_PATTERN = /[ऀ-ॿЀ-ӿ؀-ۿ가-힣฀-๿]/;
-
-async function createJapaneseChatCompletion(
-  openai: OpenAI,
-  params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
-  maxAttempts = 3,
-): Promise<OpenAI.Chat.ChatCompletion> {
-  let response = (await openai.chat.completions.create(params)) as OpenAI.Chat.ChatCompletion;
-  for (let attempt = 1; attempt < maxAttempts; attempt++) {
-    const content = response.choices[0]?.message.content ?? '';
-    if (!FOREIGN_SCRIPT_PATTERN.test(content)) break;
-    response = (await openai.chat.completions.create(params)) as OpenAI.Chat.ChatCompletion;
-  }
-  return response;
-}
-
 const CUISINE_STYLES = ['和食', '洋食', '中華', 'エスニック', 'ジャンルにこだわらない自由な発想'];
 
 function buildVarietyHint(): string {
@@ -176,7 +159,7 @@ export async function POST(request: Request) {
 
       if (previousProposal && revisionRequest) {
         const response = await createJapaneseChatCompletion(openai, {
-          model: MODEL,
+          model: JAPANESE_CHAT_MODEL,
           response_format: {
             type: 'json_schema',
             json_schema: { name: 'menu_revision', strict: true, schema: REVISION_RESPONSE_SCHEMA },
@@ -204,7 +187,7 @@ export async function POST(request: Request) {
       }
 
       const response = await createJapaneseChatCompletion(openai, {
-        model: MODEL,
+        model: JAPANESE_CHAT_MODEL,
         messages: [
           { role: 'system', content: PROPOSAL_SYSTEM_PROMPT },
           { role: 'user', content: `${summarizeAnswers(answers)}\n\n${buildVarietyHint()}` },
@@ -216,7 +199,7 @@ export async function POST(request: Request) {
 
     const proposalText: string = body.proposalText ?? '';
     const response = await createJapaneseChatCompletion(openai, {
-      model: MODEL,
+      model: JAPANESE_CHAT_MODEL,
       messages: [
         { role: 'system', content: FINAL_SYSTEM_PROMPT },
         { role: 'user', content: summarizeAnswers(answers) },

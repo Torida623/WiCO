@@ -1,8 +1,6 @@
-import Constants from 'expo-constants';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Dimensions,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,9 +11,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChatBubble } from '@/components/chat/chat-bubble';
@@ -23,6 +19,7 @@ import { ChoiceButtons } from '@/components/chat/choice-buttons';
 import { MascotAvatar, MascotPose } from '@/components/chat/mascot-avatar';
 import { MoodTray } from '@/components/chat/mood-tray';
 import { RecipeBook } from '@/components/chat/recipe-book';
+import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import {
@@ -40,54 +37,30 @@ import {
 } from '@/constants/meal-flow';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { isDaytime } from '@/constants/time-of-day';
-import { useLoopingBgm } from '@/hooks/use-looping-bgm';
 import { useTheme } from '@/hooks/use-theme';
+import { fetchWithTimeout, getApiUrl } from '@/lib/api';
 
 const ROOM_BACKGROUND = require('@/assets/images/perokoko-room-bg.jpg');
 const ROOM_BACKGROUND_NO_BOOK = require('@/assets/images/perokoko-room-bg-nobook.jpg');
 const ROOM_BACKGROUND_NIGHT = require('@/assets/images/perokoko-room-bg-night.jpg');
 const ROOM_BACKGROUND_NIGHT_NO_BOOK = require('@/assets/images/perokoko-room-bg-night-nobook.jpg');
 
-// Same track regardless of time of day; fadeStartMs is tuned to its 1:03 runtime.
-const MEAL_BGM = require('@/assets/audio/meal-bgm.mp3');
-const MEAL_BGM_VOLUME = 0.4;
-
 const OK_BUTTON_IMAGE = require('@/assets/images/ui/ok-button.png');
 const MENU_DECIDED_PLATE_IMAGE = require('@/assets/images/ui/menu-decided-plate.png');
-const SIDE_MENU_BUTTON_IMAGE = require('@/assets/images/ui/menu-button.png');
-const SIDE_MENU_PANEL_IMAGE = require('@/assets/images/ui/side-menu-panel.png');
 const OK_BUTTON_SIZE = 72;
-const SIDE_MENU_BUTTON_SIZE = 60;
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-const MEAL_BGM_FADE_START_MS = 61_800;
-
-// Row bounds as a fraction of the panel image's own height, hand-measured
-// from the artwork (perokoko-room-bg style hand-drawn menu, no separate
-// hitbox layer) so each row of the curtain image gets a tappable zone.
-const SIDE_MENU_ROWS = [
-  { label: '献立を考える', top: '20.1%', height: '6.5%', left: '0%', right: '0%' },
-  { label: '料理の思い出', top: '30.1%', height: '7.3%', left: '0%', right: '0%' },
-  { label: 'レシピ研究室', top: '40.7%', height: '7.3%', left: '0%', right: '0%' },
-  { label: 'お買い物ノート', top: '51.2%', height: '7.4%', left: '0%', right: '0%' },
-  { label: 'ペロココの部屋', top: '61.8%', height: '7.3%', left: '0%', right: '0%' },
-  { label: 'お知らせ', top: '74.5%', height: '7%', left: '10%', right: '55%' },
-  { label: '設定', top: '74.5%', height: '7%', left: '50%', right: '10%' },
-] as const;
-
-function getApiUrl(path: string): string {
-  const hostUri = Constants.expoConfig?.hostUri;
-  return hostUri ? `http://${hostUri}${path}` : path;
-}
 
 const MENU_FETCH_TIMEOUT_MS = 30_000;
 
 async function fetchMenuMessage(mode: 'proposal' | 'final', answers: Answers, proposalText?: string) {
-  const res = await fetch(getApiUrl('/api/menu'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode, answers, proposalText }),
-    signal: AbortSignal.timeout(MENU_FETCH_TIMEOUT_MS),
-  });
+  const res = await fetchWithTimeout(
+    getApiUrl('/api/menu'),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode, answers, proposalText }),
+    },
+    MENU_FETCH_TIMEOUT_MS,
+  );
   const data = await res.json();
   if (!res.ok) {
     throw new Error(typeof data.message === 'string' ? data.message : 'AIとの通信に失敗しました。');
@@ -166,15 +139,12 @@ export default function MealChatScreen() {
   const [allergyValue, setAllergyValue] = useState('');
   const [showRevisionInput, setShowRevisionInput] = useState(false);
   const [showMoodTray, setShowMoodTray] = useState(false);
-  const [showSideMenu, setShowSideMenu] = useState(false);
   const [showingRecipeDetail, setShowingRecipeDetail] = useState(false);
   const lastProposalRef = useRef('');
   const finalDetailsRef = useRef<{ proposal: string; content: string } | null>(null);
   const messageIdRef = useRef(1);
   const mascotOpacity = useSharedValue(1);
-  const sideMenuTranslateY = useSharedValue(-SCREEN_HEIGHT);
   const daytime = useRef(isDaytime()).current;
-  useLoopingBgm(MEAL_BGM, MEAL_BGM_VOLUME, true, MEAL_BGM_FADE_START_MS, 0);
 
   const roomBackground = daytime
     ? currentMessage.kind === 'book'
@@ -188,31 +158,6 @@ export default function MealChatScreen() {
     const hideMascot = currentMessage.kind === 'book' || currentMessage.kind === 'plate';
     mascotOpacity.value = withTiming(hideMascot ? 0 : 1, { duration: 450 });
   }, [currentMessage.kind, mascotOpacity]);
-
-  useEffect(() => {
-    sideMenuTranslateY.value = withTiming(showSideMenu ? 0 : -SCREEN_HEIGHT, {
-      duration: 420,
-      easing: Easing.out(Easing.quad),
-    });
-  }, [showSideMenu, sideMenuTranslateY]);
-
-  const sideMenuStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: sideMenuTranslateY.value }],
-  }));
-
-  const sideMenuPanGesture = Gesture.Pan()
-    .onUpdate((event) => {
-      sideMenuTranslateY.value = Math.min(0, event.translationY);
-    })
-    .onEnd((event) => {
-      const shouldClose = event.translationY < -100 || event.velocityY < -600;
-      if (shouldClose) {
-        sideMenuTranslateY.value = withTiming(-SCREEN_HEIGHT, { duration: 320, easing: Easing.in(Easing.quad) });
-        scheduleOnRN(setShowSideMenu, false);
-      } else {
-        sideMenuTranslateY.value = withTiming(0, { duration: 260, easing: Easing.out(Easing.quad) });
-      }
-    });
 
   const mascotStyle = useAnimatedStyle(() => ({ opacity: mascotOpacity.value }));
 
@@ -387,17 +332,7 @@ export default function MealChatScreen() {
         <MascotAvatar pose={mascotPose} style={styles.roomMascot} />
       </Animated.View>
 
-      <SafeAreaView style={styles.sideMenuButtonSafeArea} edges={['top', 'left']} pointerEvents="box-none">
-        <Pressable onPress={() => setShowSideMenu(true)} style={styles.sideMenuButtonPressable}>
-          {({ pressed }) => (
-            <Image
-              source={SIDE_MENU_BUTTON_IMAGE}
-              style={[styles.sideMenuButtonImage, pressed && styles.pressed]}
-              contentFit="contain"
-            />
-          )}
-        </Pressable>
-      </SafeAreaView>
+      <SideMenu />
 
       <KeyboardAvoidingView
         style={styles.flex}
@@ -595,25 +530,6 @@ export default function MealChatScreen() {
         />
       )}
 
-      <GestureDetector gesture={sideMenuPanGesture}>
-        <Animated.View
-          style={[styles.sideMenuPanel, sideMenuStyle]}
-          pointerEvents={showSideMenu ? 'box-none' : 'none'}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowSideMenu(false)}>
-            <Image source={SIDE_MENU_PANEL_IMAGE} style={styles.sideMenuImage} contentFit="cover" />
-          </Pressable>
-          {SIDE_MENU_ROWS.map((row) => (
-            <Pressable
-              key={row.label}
-              onPress={() => setShowSideMenu(false)}
-              style={[
-                styles.sideMenuRowZone,
-                { top: row.top, height: row.height, left: row.left, right: row.right },
-              ]}
-            />
-          ))}
-        </Animated.View>
-      </GestureDetector>
     </View>
   );
 }
@@ -716,32 +632,6 @@ const styles = StyleSheet.create({
     width: '58%',
     height: undefined,
     aspectRatio: 1,
-  },
-  sideMenuButtonSafeArea: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    zIndex: 10,
-  },
-  sideMenuButtonPressable: {
-    padding: Spacing.three,
-  },
-  sideMenuButtonImage: {
-    width: SIDE_MENU_BUTTON_SIZE,
-    height: SIDE_MENU_BUTTON_SIZE,
-  },
-  sideMenuPanel: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 20,
-  },
-  sideMenuImage: {
-    width: '100%',
-    height: '100%',
-  },
-  sideMenuRowZone: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
   },
   inputArea: {
     padding: Spacing.three,

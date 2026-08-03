@@ -15,9 +15,10 @@ const MENU_BACKGROUNDS = [
 
 export type TitleMenuScreenProps = {
   onSelectMenuProposal: () => void;
+  onSelectMealMemories: () => void;
 };
 
-export function TitleMenuScreen({ onSelectMenuProposal }: TitleMenuScreenProps) {
+export function TitleMenuScreen({ onSelectMenuProposal, onSelectMealMemories }: TitleMenuScreenProps) {
   return (
     <View style={styles.flex}>
       <DissolveBackground images={MENU_BACKGROUNDS} />
@@ -26,6 +27,15 @@ export function TitleMenuScreen({ onSelectMenuProposal }: TitleMenuScreenProps) 
           {({ pressed }) => (
             <ThemedView type="backgroundElement" style={[styles.button, pressed && styles.pressed]}>
               <ThemedText type="subtitle">献立を考える</ThemedText>
+            </ThemedView>
+          )}
+        </Pressable>
+        <Pressable onPress={onSelectMealMemories}>
+          {({ pressed }) => (
+            <ThemedView
+              type="backgroundElement"
+              style={[styles.button, styles.secondaryButton, pressed && styles.pressed]}>
+              <ThemedText type="subtitle">料理の思い出</ThemedText>
             </ThemedView>
           )}
         </Pressable>
@@ -44,11 +54,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingBottom: BottomTabInset + Spacing.four,
+    gap: Spacing.three,
   },
   button: {
     paddingHorizontal: Spacing.five,
     paddingVertical: Spacing.three,
     borderRadius: Spacing.four,
+  },
+  secondaryButton: {
+    paddingVertical: Spacing.two,
   },
   pressed: {
     opacity: 0.7,

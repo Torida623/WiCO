@@ -33,7 +33,15 @@
           "imageWidth": 76
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "食事の記録をつけるために写真ライブラリへのアクセスを使うよ。",
+          "cameraPermission": "食事の記録をつけるために撮影した写真をその場で使うよ。",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
