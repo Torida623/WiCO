@@ -89,6 +89,10 @@ export function useLoopingBgm(
     } else {
       clearTimers();
       player.pause();
+      // Reset to the top so the next time this track becomes active again
+      // (e.g. returning to a tab after unmountOnBlur reset its screen) it
+      // starts fresh instead of resuming mid-track.
+      player.seekTo(0).catch(() => {});
     }
 
     return clearTimers;

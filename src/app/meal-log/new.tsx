@@ -214,7 +214,7 @@ export default function NewMealRecordScreen() {
         <ScreenHeader title="記録する" onBack={() => router.back()} />
 
         {phase === 'capture' && (
-          <View style={[styles.content, styles.captureContent]}>
+          <View style={[styles.content, styles.captureContent]} pointerEvents="box-none">
             <View style={styles.introArea}>
               <View style={styles.introBubbleWrap}>
                 <Image source={SPEECH_BUBBLE_IMAGE} style={styles.introBubbleImage} contentFit="contain" />

@@ -128,6 +128,7 @@ export default function MealChatScreen() {
   const [mascotPose, setMascotPose] = useState<MascotPose>('neutral');
   const [step, setStep] = useState<StepId>('entryPoint');
   const [answers, setAnswers] = useState<Answers>({});
+  const [stepHistory, setStepHistory] = useState<{ step: StepId; answers: Answers }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
 
   const [textValue, setTextValue] = useState('');
@@ -209,7 +210,9 @@ export default function MealChatScreen() {
   async function advance(newAnswers: Answers, userDisplayText: string) {
     showMessage('user', userDisplayText);
     const previousStep = step;
+    const previousAnswers = answers;
     const next = getNextStep(step, newAnswers);
+    setStepHistory((history) => [...history, { step: previousStep, answers: previousAnswers }]);
     setAnswers(newAnswers);
     setStep(next);
     setIsTyping(true);
@@ -247,10 +250,30 @@ export default function MealChatScreen() {
       console.error(error);
       setMascotPose('neutral');
       setStep(previousStep);
+      setStepHistory((history) => history.slice(0, -1));
       showMessage('ai', 'あれ、うまく繋がらなかったみたい…！もう一度試してみてくれる？');
     } finally {
       setIsTyping(false);
     }
+  }
+
+  function handleBack() {
+    if (stepHistory.length === 0) return;
+    const previous = stepHistory[stepHistory.length - 1];
+    setStepHistory((history) => history.slice(0, -1));
+    setAnswers(previous.answers);
+    setStep(previous.step);
+    setMascotPose('neutral');
+    setTextValue('');
+    setGenreTag(null);
+    setFormatTag(null);
+    setTasteTag(null);
+    setTemperatureTag(null);
+    setFreeMoodValue('');
+    setAllergyValue('');
+    setShowMoodTray(false);
+    setShowRevisionInput(false);
+    showMessage('ai', getStepMessage(previous.step as Exclude<StepId, 'proposal' | 'final'>, previous.answers));
   }
 
   function handleChoice(key: keyof Answers, value: string, label: string) {
@@ -306,6 +329,7 @@ export default function MealChatScreen() {
     setMascotPose('neutral');
     setStep('entryPoint');
     setAnswers({});
+    setStepHistory([]);
     setTextValue('');
     setGenreTag(null);
     setFormatTag(null);
@@ -374,23 +398,33 @@ export default function MealChatScreen() {
             )}
 
             {step === 'cookingTime' && (
-              <ChoiceButtons
-                options={COOKING_TIME_OPTIONS}
-                onSelect={(value) => {
-                  const label = COOKING_TIME_OPTIONS.find((o) => o.value === value)!.label;
-                  handleChoice('cookingTime', value, label);
-                }}
-              />
+              <>
+                <ChoiceButtons
+                  options={COOKING_TIME_OPTIONS}
+                  onSelect={(value) => {
+                    const label = COOKING_TIME_OPTIONS.find((o) => o.value === value)!.label;
+                    handleChoice('cookingTime', value, label);
+                  }}
+                />
+                <View style={styles.choiceBackRow}>
+                  <BackButton onPress={handleBack} />
+                </View>
+              </>
             )}
 
             {step === 'shopping' && (
-              <ChoiceButtons
-                options={SHOPPING_OPTIONS}
-                onSelect={(value) => {
-                  const label = SHOPPING_OPTIONS.find((o) => o.value === value)!.label;
-                  handleChoice('shopping', value, label);
-                }}
-              />
+              <>
+                <ChoiceButtons
+                  options={SHOPPING_OPTIONS}
+                  onSelect={(value) => {
+                    const label = SHOPPING_OPTIONS.find((o) => o.value === value)!.label;
+                    handleChoice('shopping', value, label);
+                  }}
+                />
+                <View style={styles.choiceBackRow}>
+                  <BackButton onPress={handleBack} />
+                </View>
+              </>
             )}
 
             {step === 'people' && (
@@ -399,10 +433,10 @@ export default function MealChatScreen() {
                   value={textValue}
                   onChangeText={setTextValue}
                   onSubmit={handlePeopleSubmit}
+                  onBack={handleBack}
                   placeholder="人数を教えてね！"
                   keyboardType="number-pad"
                   centered
-                  stacked
                 />
               </View>
             )}
@@ -412,6 +446,7 @@ export default function MealChatScreen() {
                 value={textValue}
                 onChangeText={setTextValue}
                 onSubmit={handleIngredientsSubmit}
+                onBack={handleBack}
                 placeholder="例: 鶏胸肉、キャベツ（任意）"
               />
             )}
@@ -450,10 +485,10 @@ export default function MealChatScreen() {
                     </ThemedView>
                   </>
                 )}
-                <SendButton
-                  onPress={showMoodTray ? () => setShowMoodTray(false) : handleMoodAllergySubmit}
-                  style={styles.moodSendButton}
-                />
+                <View style={styles.moodButtonRow}>
+                  {!showMoodTray && <BackButton onPress={handleBack} />}
+                  <SendButton onPress={showMoodTray ? () => setShowMoodTray(false) : handleMoodAllergySubmit} />
+                </View>
               </View>
             )}
 
@@ -538,25 +573,23 @@ function TextRow({
   value,
   onChangeText,
   onSubmit,
+  onBack,
   placeholder,
   keyboardType,
   centered,
-  stacked,
 }: {
   value: string;
   onChangeText: (text: string) => void;
   onSubmit: () => void;
+  onBack?: () => void;
   placeholder: string;
   keyboardType?: 'default' | 'number-pad';
   centered?: boolean;
-  stacked?: boolean;
 }) {
   const theme = useTheme();
   return (
-    <View style={[styles.textRow, stacked && styles.textRowStacked]}>
-      <ThemedView
-        type="backgroundElement"
-        style={[styles.textInputWrapper, stacked ? styles.textInputWrapperStacked : styles.flex]}>
+    <View style={styles.textRowStacked}>
+      <ThemedView type="backgroundElement" style={[styles.textInputWrapper, styles.textInputWrapperStacked]}>
         <TextInput
           value={value}
           onChangeText={onChangeText}
@@ -567,7 +600,10 @@ function TextRow({
           onSubmitEditing={onSubmit}
         />
       </ThemedView>
-      <SendButton onPress={onSubmit} />
+      <View style={styles.controlsRow}>
+        {onBack && <BackButton onPress={onBack} />}
+        <SendButton onPress={onSubmit} />
+      </View>
     </View>
   );
 }
@@ -581,6 +617,20 @@ function SendButton({ onPress, style }: { onPress: () => void; style?: StyleProp
           style={[styles.sendButton, pressed && styles.pressed]}
           contentFit="contain"
         />
+      )}
+    </Pressable>
+  );
+}
+
+function BackButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress}>
+      {({ pressed }) => (
+        <ThemedView type="backgroundElement" style={[styles.backButton, pressed && styles.pressed]}>
+          <ThemedText type="smallBold" themeColor="textSecondary">
+            戻る
+          </ThemedText>
+        </ThemedView>
       )}
     </Pressable>
   );
@@ -643,14 +693,15 @@ const styles = StyleSheet.create({
   peopleRow: {
     marginTop: -Spacing.four,
   },
-  textRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-    alignItems: 'center',
-  },
   textRowStacked: {
     flexDirection: 'column',
     alignItems: 'center',
+    gap: Spacing.two,
+  },
+  controlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   dualTextContainer: {
     gap: Spacing.two,
@@ -673,8 +724,22 @@ const styles = StyleSheet.create({
     width: OK_BUTTON_SIZE,
     height: OK_BUTTON_SIZE,
   },
-  moodSendButton: {
-    alignSelf: 'center',
+  backButton: {
+    height: OK_BUTTON_SIZE,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.four,
+    borderRadius: Spacing.four,
+  },
+  choiceBackRow: {
+    alignItems: 'center',
+    marginTop: Spacing.two,
+  },
+  moodButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
   },
   proposalButtonsColumn: {
     gap: Spacing.two,
