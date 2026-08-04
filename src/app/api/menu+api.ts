@@ -121,6 +121,10 @@ function buildVarietyHint(): string {
   return `${creativityLine}\n参考ジャンル: ${style}（絶対ではなく、あくまで参考程度）\n同じ条件でも毎回違う献立を考え、同じ料理ばかりを繰り返し提案しないでください。`;
 }
 
+function buildFridgeHint(): string {
+  return '今回は冷蔵庫にある食材から考えるシーンです。挙げられた食材だけで献立が完結するのが理想ですが、無理に全部使い切ろうとして不自然な組み合わせや謎料理にはしないでください。実際に美味しく作れる自然な組み合わせを優先し、挙げられた食材はほどほどに活用してください（使わない食材があってもかまいません）。挙げられていない食材を使う場合は、米・調味料・少量の薬味など家庭に常備されていそうなものに留め、肉・魚・野菜などの主要な食材を勝手に追加しないでください。';
+}
+
 function summarizeAnswers(answers: Answers): string {
   const entryLabel = ENTRY_POINT_OPTIONS.find((o) => o.value === answers.entryPoint)?.label ?? '未指定';
   const lines = [`シーン: ${entryLabel}`, `人数: ${answers.people ?? '未指定'}人`];
@@ -130,7 +134,10 @@ function summarizeAnswers(answers: Answers): string {
   }
   if (answers.mood?.trim()) lines.push(`今の気分: ${answers.mood.trim()}`);
   if (answers.allergy?.trim()) lines.push(`アレルギー・苦手な食材: ${answers.allergy.trim()}`);
-  if (answers.ingredients?.trim()) lines.push(`使いたい食材: ${answers.ingredients.trim()}`);
+  if (answers.ingredients?.trim()) {
+    const label = answers.entryPoint === 'fridge' ? '冷蔵庫にある食材（必ずこれらを中心に使うこと）' : '使いたい食材';
+    lines.push(`${label}: ${answers.ingredients.trim()}`);
+  }
   if (answers.shopping) lines.push(`買い物: ${answers.shopping === 'yes' ? '可能' : '不可'}`);
   if (answers.revisionRequest?.trim()) lines.push(`前回の提案への変更希望: ${answers.revisionRequest.trim()}`);
 
@@ -186,11 +193,12 @@ export async function POST(request: Request) {
         return Response.json({ message: text });
       }
 
+      const fridgeHint = answers.entryPoint === 'fridge' ? `\n${buildFridgeHint()}` : '';
       const response = await createJapaneseChatCompletion(openai, {
         model: JAPANESE_CHAT_MODEL,
         messages: [
           { role: 'system', content: PROPOSAL_SYSTEM_PROMPT },
-          { role: 'user', content: `${summarizeAnswers(answers)}\n\n${buildVarietyHint()}` },
+          { role: 'user', content: `${summarizeAnswers(answers)}\n\n${buildVarietyHint()}${fridgeHint}` },
         ],
       });
       const text = response.choices[0]?.message.content ?? '';

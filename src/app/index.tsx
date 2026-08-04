@@ -1,5 +1,6 @@
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChatBubble } from '@/components/chat/chat-bubble';
 import { ChoiceButtons } from '@/components/chat/choice-buttons';
+import { FridgeScanPanel } from '@/components/chat/fridge-scan-panel';
 import { MascotAvatar, MascotPose } from '@/components/chat/mascot-avatar';
 import { MoodTray } from '@/components/chat/mood-tray';
 import { RecipeBook } from '@/components/chat/recipe-book';
@@ -44,6 +46,7 @@ const ROOM_BACKGROUND = require('@/assets/images/perokoko-room-bg.jpg');
 const ROOM_BACKGROUND_NO_BOOK = require('@/assets/images/perokoko-room-bg-nobook.jpg');
 const ROOM_BACKGROUND_NIGHT = require('@/assets/images/perokoko-room-bg-night.jpg');
 const ROOM_BACKGROUND_NIGHT_NO_BOOK = require('@/assets/images/perokoko-room-bg-night-nobook.jpg');
+const FRIDGE_SCAN_BACKGROUND = require('@/assets/images/ui/fridge-scan-bg.jpg');
 
 const OK_BUTTON_IMAGE = require('@/assets/images/ui/ok-button.png');
 const MENU_DECIDED_PLATE_IMAGE = require('@/assets/images/ui/menu-decided-plate.png');
@@ -82,7 +85,8 @@ type Message =
       mascotPose?: MascotPose;
     }
   | { id: string; kind: 'book'; sender: 'ai'; bookContent: string }
-  | { id: string; kind: 'plate' };
+  | { id: string; kind: 'plate' }
+  | { id: string; kind: 'fridgeScan' };
 
 const MEAL_REACTION: Record<EntryPoint, string> = {
   breakfast: 'もちろん！朝ごはんだね！',
@@ -147,16 +151,20 @@ export default function MealChatScreen() {
   const mascotOpacity = useSharedValue(1);
   const daytime = useRef(isDaytime()).current;
 
-  const roomBackground = daytime
-    ? currentMessage.kind === 'book'
-      ? ROOM_BACKGROUND_NO_BOOK
-      : ROOM_BACKGROUND
-    : currentMessage.kind === 'book'
-      ? ROOM_BACKGROUND_NIGHT_NO_BOOK
-      : ROOM_BACKGROUND_NIGHT;
+  const roomBackground =
+    currentMessage.kind === 'fridgeScan'
+      ? FRIDGE_SCAN_BACKGROUND
+      : daytime
+        ? currentMessage.kind === 'book'
+          ? ROOM_BACKGROUND_NO_BOOK
+          : ROOM_BACKGROUND
+        : currentMessage.kind === 'book'
+          ? ROOM_BACKGROUND_NIGHT_NO_BOOK
+          : ROOM_BACKGROUND_NIGHT;
 
   useEffect(() => {
-    const hideMascot = currentMessage.kind === 'book' || currentMessage.kind === 'plate';
+    const hideMascot =
+      currentMessage.kind === 'book' || currentMessage.kind === 'plate' || currentMessage.kind === 'fridgeScan';
     mascotOpacity.value = withTiming(hideMascot ? 0 : 1, { duration: 450 });
   }, [currentMessage.kind, mascotOpacity]);
 
@@ -178,6 +186,10 @@ export default function MealChatScreen() {
 
   function showPlateMessage() {
     setCurrentMessage({ id: nextMessageId(), kind: 'plate' });
+  }
+
+  function showFridgeScanMessage() {
+    setCurrentMessage({ id: nextMessageId(), kind: 'fridgeScan' });
   }
 
   async function getFinalDetails(currentAnswers: Answers): Promise<string> {
@@ -239,12 +251,18 @@ export default function MealChatScreen() {
         setMascotPose('idea');
         await new Promise((resolve) => setTimeout(resolve, 1500));
         showPlateMessage();
-        setTimeout(() => showBookMessage(bookContent), 1400);
+        setTimeout(() => showBookMessage(bookContent), 2000);
         return;
       }
 
       const delay = 600 + Math.random() * 500;
       await new Promise((resolve) => setTimeout(resolve, delay));
+
+      if (next === 'ingredients' && newAnswers.entryPoint === 'fridge') {
+        showFridgeScanMessage();
+        return;
+      }
+
       showMessage('ai', getStepMessage(next, newAnswers));
     } catch (error) {
       console.error(error);
@@ -273,6 +291,12 @@ export default function MealChatScreen() {
     setAllergyValue('');
     setShowMoodTray(false);
     setShowRevisionInput(false);
+
+    if (previous.step === 'ingredients' && previous.answers.entryPoint === 'fridge') {
+      showFridgeScanMessage();
+      return;
+    }
+
     showMessage('ai', getStepMessage(previous.step as Exclude<StepId, 'proposal' | 'final'>, previous.answers));
   }
 
@@ -292,6 +316,10 @@ export default function MealChatScreen() {
     if (answers.entryPoint === 'breakfast' && !value) return;
     advance({ ...answers, ingredients: value }, value || '（特になし）');
     setTextValue('');
+  }
+
+  function handleFridgeIngredientsConfirm(ingredientsText: string) {
+    advance({ ...answers, ingredients: ingredientsText }, ingredientsText);
   }
 
   function handleMoodAllergySubmit() {
@@ -344,6 +372,16 @@ export default function MealChatScreen() {
     finalDetailsRef.current = null;
   }
 
+  // Leaving mid-flow (e.g. via the side menu) and coming back later should
+  // start over rather than resume where the chat was left off.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        handleRestart();
+      };
+    }, []),
+  );
+
   return (
     <View style={styles.flex}>
       <Image
@@ -376,6 +414,8 @@ export default function MealChatScreen() {
               <View style={styles.messageContent}>
                 <RecipeBook content={currentMessage.bookContent} onRestart={handleRestart} />
               </View>
+            ) : currentMessage.kind === 'fridgeScan' ? (
+              <FridgeScanPanel onConfirm={handleFridgeIngredientsConfirm} onBack={handleBack} />
             ) : (
               <ScrollView contentContainerStyle={styles.messageScrollContent} showsVerticalScrollIndicator={false}>
                 <ChatBubble sender={currentMessage.sender} text={currentMessage.text} style={styles.dialogueOffset} />
@@ -383,7 +423,7 @@ export default function MealChatScreen() {
             )}
           </View>
 
-          {currentMessage.kind !== 'plate' && (
+          {currentMessage.kind !== 'plate' && currentMessage.kind !== 'fridgeScan' && (
           <View
             style={[styles.inputArea, isTyping && styles.inputAreaDisabled]}
             pointerEvents={isTyping ? 'none' : 'auto'}>
@@ -447,7 +487,9 @@ export default function MealChatScreen() {
                 onChangeText={setTextValue}
                 onSubmit={handleIngredientsSubmit}
                 onBack={handleBack}
-                placeholder="例: 鶏胸肉、キャベツ（任意）"
+                placeholder={
+                  answers.entryPoint === 'breakfast' ? '例: 卵、食パン、ヨーグルト' : '例: 鶏胸肉、キャベツ（任意）'
+                }
               />
             )}
 
