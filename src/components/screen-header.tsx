@@ -6,7 +6,7 @@ import { Spacing } from '@/constants/theme';
 const SIDE_SLOT_WIDTH = Spacing.six + Spacing.four;
 
 export type ScreenHeaderProps = {
-  title: string;
+  title?: string;
   onBack?: () => void;
 };
 
@@ -30,9 +30,11 @@ export function ScreenHeader({ title, onBack }: ScreenHeaderProps) {
           </Pressable>
         )}
       </View>
-      <ThemedText type="smallBold" style={styles.title}>
-        {title}
-      </ThemedText>
+      {title && (
+        <ThemedText type="smallBold" style={styles.title}>
+          {title}
+        </ThemedText>
+      )}
       <View style={styles.sideSlot} />
     </View>
   );

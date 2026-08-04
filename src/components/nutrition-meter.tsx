@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { FoodGroupLevel } from '@/lib/meal-records';
 
 const LEVEL_INDEX: Record<FoodGroupLevel, number> = {
@@ -18,32 +19,31 @@ const LEVEL_LABEL: Record<FoodGroupLevel, string> = {
   slightlyHigh: 'ちょっと多め',
   high: '多め',
 };
-const SEGMENT_COUNT = 5;
+const LEVEL_COUNT = 5;
 
 export type NutritionMeterProps = {
   label: string;
   level: FoodGroupLevel;
   color: string;
+  compact?: boolean;
 };
 
-export function NutritionMeter({ label, level, color }: NutritionMeterProps) {
-  const activeIndex = LEVEL_INDEX[level];
+export function NutritionMeter({ label, level, color, compact }: NutritionMeterProps) {
+  const theme = useTheme();
+  const fillPercent = ((LEVEL_INDEX[level] + 1) / LEVEL_COUNT) * 100;
 
   return (
     <View style={styles.container}>
       <View style={styles.labelRow}>
-        <ThemedText type="smallBold">{label}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
+        <ThemedText type="smallBold" style={compact && styles.compactText}>
+          {label}
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary" style={compact && styles.compactText}>
           {LEVEL_LABEL[level]}
         </ThemedText>
       </View>
-      <View style={styles.track}>
-        {Array.from({ length: SEGMENT_COUNT }, (_, index) => (
-          <View
-            key={index}
-            style={[styles.segment, { backgroundColor: index <= activeIndex ? color : 'rgba(0,0,0,0.08)' }]}
-          />
-        ))}
+      <View style={[styles.track, { backgroundColor: theme.backgroundSelected }]}>
+        <View style={[styles.fill, { width: `${fillPercent}%`, backgroundColor: color }]} />
       </View>
     </View>
   );
@@ -57,13 +57,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  track: {
-    flexDirection: 'row',
-    gap: Spacing.one,
+  compactText: {
+    fontSize: 12,
+    lineHeight: 16,
   },
-  segment: {
-    flex: 1,
+  track: {
     height: 10,
-    borderRadius: Spacing.one,
+    borderRadius: Spacing.two,
+    overflow: 'hidden',
+  },
+  fill: {
+    height: '100%',
+    borderRadius: Spacing.two,
   },
 });

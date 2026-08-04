@@ -45,6 +45,35 @@ export type MealRecordSearchQuery = {
   favoriteOnly?: boolean;
 };
 
+export type WeeklyNutritionBalance = {
+  energy: FoodGroupLevel;
+  protein: FoodGroupLevel;
+  vegetable: FoodGroupLevel;
+  recordCount: number;
+};
+
+const FOOD_GROUP_LEVEL_ORDER: FoodGroupLevel[] = ['low', 'slightlyLow', 'adequate', 'slightlyHigh', 'high'];
+
+function averageFoodGroupLevel(levels: FoodGroupLevel[]): FoodGroupLevel {
+  const sum = levels.reduce((total, level) => total + FOOD_GROUP_LEVEL_ORDER.indexOf(level), 0);
+  return FOOD_GROUP_LEVEL_ORDER[Math.round(sum / levels.length)];
+}
+
+/** Aggregates each food group's level across records into a single week-level score. Returns null if none of the records carry a nutrition balance yet. */
+export function summarizeNutritionBalance(records: MealRecord[]): WeeklyNutritionBalance | null {
+  const balances = records
+    .map((record) => record.nutritionBalance)
+    .filter((balance): balance is NutritionBalance => balance !== undefined);
+  if (balances.length === 0) return null;
+
+  return {
+    energy: averageFoodGroupLevel(balances.map((balance) => balance.energy)),
+    protein: averageFoodGroupLevel(balances.map((balance) => balance.protein)),
+    vegetable: averageFoodGroupLevel(balances.map((balance) => balance.vegetable)),
+    recordCount: balances.length,
+  };
+}
+
 const STORAGE_KEY = 'wico:meal-records';
 function getPhotoDir(): Directory {
   return new Directory(Paths.document, 'meal-photos');
