@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { DimensionValue, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from '@/components/screen-header';
@@ -9,6 +10,7 @@ import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { usePageDissolveOut } from '@/hooks/use-page-dissolve';
 import { useTheme } from '@/hooks/use-theme';
 import {
   addExpenseEntry,
@@ -23,41 +25,57 @@ import {
 } from '@/lib/household-budget';
 
 const NOTEBOOK_BACKGROUND = require('@/assets/images/budget/notebook-bg.jpg');
+const PAGE_CURL_IMAGE = require('@/assets/images/budget/page-curl.jpg');
 const SUMMARY_CARD_IMAGE = require('@/assets/images/budget/summary-card.png');
 const RECENT_TITLE_IMAGE = require('@/assets/images/budget/recent-title.png');
-const STICKY_BUTTONS_IMAGE = require('@/assets/images/budget/sticky-buttons.png');
+const STICKY_BUTTON_LIVING_COSTS_IMAGE = require('@/assets/images/budget/sticky-button-living-costs.png');
+const STICKY_BUTTON_SUMMARY_IMAGE = require('@/assets/images/budget/sticky-button-summary.png');
+const INPUT_CARD_FOOD_IMAGE = require('@/assets/images/budget/input-card-food.png');
+const INPUT_CARD_OTHER_IMAGE = require('@/assets/images/budget/input-card-other.png');
 
 const SUMMARY_CARD_ASPECT_RATIO = 1536 / 1024;
-const STICKY_BUTTONS_ASPECT_RATIO = 1536 / 1024;
+const STICKY_BUTTON_LIVING_COSTS_ASPECT_RATIO = 1211 / 433;
+const STICKY_BUTTON_SUMMARY_ASPECT_RATIO = 1190 / 362;
+const INPUT_CARD_ASPECT_RATIO = 1360 / 741;
 const RECENT_TITLE_ASPECT_RATIO = 1004 / 215;
+
+// The amount field shows live typed digits over baked-in "金額" placeholder
+// art, so that patch of the card needs an opaque cover in the pill's own
+// fill color (sampled from the source art) before the real text can sit on
+// top of it cleanly.
+const AMOUNT_PILL_FILL_COLOR = 'rgb(249, 234, 203)';
 
 function formatEntryDate(createdAt: string): string {
   const date = new Date(createdAt);
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
-function StickyNavButton({
+/** An invisible tap zone positioned over a hand-drawn button baked into a background image. */
+function CardZone({
   top,
   height,
   left,
   right,
   onPress,
+  disabled,
 }: {
   top: DimensionValue;
   height: DimensionValue;
   left: DimensionValue;
   right: DimensionValue;
   onPress: () => void;
+  disabled?: boolean;
 }) {
   return (
-    <Pressable onPress={onPress} style={[styles.stickyButtonZone, { top, height, left, right }]}>
-      {({ pressed }) => pressed && <View style={styles.stickyButtonPressedOverlay} />}
+    <Pressable onPress={onPress} disabled={disabled} style={[styles.cardZone, { top, height, left, right }]}>
+      {({ pressed }) => pressed && !disabled && <View style={styles.cardZonePressedOverlay} />}
     </Pressable>
   );
 }
 
 export default function BudgetScreen() {
   const theme = useTheme();
+  const { contentStyle: dissolveContentStyle, curlStyle: dissolveCurlStyle, dissolveOut } = usePageDissolveOut();
   const [entries, setEntries] = useState<ExpenseEntry[]>([]);
   const [summary, setSummary] = useState<MonthSummary | null>(null);
   const [amountValue, setAmountValue] = useState('');
@@ -95,11 +113,12 @@ export default function BudgetScreen() {
   return (
     <View style={styles.flex}>
       <Image source={NOTEBOOK_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
+      <Animated.View style={[styles.flex, dissolveContentStyle]}>
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="お買い物ノート" onBack={() => router.back()} />
+        <ScreenHeader onBack={() => router.back()} />
 
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} scrollEnabled={false}>
           <View style={styles.summaryCardWrapper}>
             <Image source={SUMMARY_CARD_IMAGE} style={styles.summaryCardImage} contentFit="contain" />
             <View style={styles.summaryCardOverlay} pointerEvents="none">
@@ -113,89 +132,87 @@ export default function BudgetScreen() {
                 </ThemedText>
               )}
             </View>
+
+            {summary && summary.totalSpent > 0 && (
+              <>
+                <View style={styles.summaryValueFood} pointerEvents="none">
+                  <ThemedText
+                    type="smallBold"
+                    themeColor="text"
+                    style={styles.summaryValueText}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}>
+                    {formatYen(summary.foodTotal)}
+                  </ThemedText>
+                </View>
+                <View style={styles.summaryValueOther} pointerEvents="none">
+                  <ThemedText
+                    type="smallBold"
+                    themeColor="text"
+                    style={styles.summaryValueText}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}>
+                    {formatYen(summary.otherTotal)}
+                  </ThemedText>
+                </View>
+                <View style={styles.summaryValueLiving} pointerEvents="none">
+                  <ThemedText
+                    type="smallBold"
+                    themeColor="text"
+                    style={styles.summaryValueText}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}>
+                    {formatYen(summary.livingCostTotal)}
+                  </ThemedText>
+                </View>
+              </>
+            )}
           </View>
 
-          {summary && summary.totalSpent > 0 && (
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryStat}>
-                <ThemedText type="small" themeColor="textSecondary">
-                  食費
-                </ThemedText>
-                <ThemedText type="smallBold">{formatYen(summary.foodTotal)}</ThemedText>
-              </View>
-              <View style={styles.summaryStat}>
-                <ThemedText type="small" themeColor="textSecondary">
-                  食費以外
-                </ThemedText>
-                <ThemedText type="smallBold">{formatYen(summary.otherTotal)}</ThemedText>
-              </View>
-              <View style={styles.summaryStat}>
-                <ThemedText type="small" themeColor="textSecondary">
-                  生活費
-                </ThemedText>
-                <ThemedText type="smallBold">{formatYen(summary.livingCostTotal)}</ThemedText>
-              </View>
+          <View style={styles.inputCardWrapper}>
+            <Image
+              source={category === 'food' ? INPUT_CARD_FOOD_IMAGE : INPUT_CARD_OTHER_IMAGE}
+              style={styles.inputCardImage}
+              contentFit="contain"
+            />
+            <CardZone top="18.6%" height="23.5%" left="3.6%" right="51.6%" onPress={() => setCategory('food')} />
+            <CardZone top="18.6%" height="23.5%" left="50.8%" right="4.9%" onPress={() => setCategory('other')} />
+            <View style={[styles.cardZone, styles.amountPatch, { top: '42.7%', height: '23.5%', left: '2.2%', right: '23.8%' }]}>
+              <TextInput
+                value={amountValue}
+                onChangeText={setAmountValue}
+                onSubmitEditing={handleAdd}
+                keyboardType="number-pad"
+                placeholder="金額"
+                placeholderTextColor={theme.textSecondary}
+                style={[styles.amountInput, { color: theme.text }]}
+              />
             </View>
-          )}
-
-          <View style={styles.section}>
-            <ThemedText type="smallBold">支出を記録する</ThemedText>
-            <View style={styles.categoryRow}>
-              {(['food', 'other'] as ExpenseCategory[]).map((value) => {
-                const selected = category === value;
-                return (
-                  <Pressable key={value} onPress={() => setCategory(value)} style={styles.flex}>
-                    {({ pressed }) => (
-                      <ThemedView
-                        type={selected ? 'accent' : 'backgroundElement'}
-                        style={[styles.categoryButton, pressed && styles.pressed]}>
-                        <ThemedText type="smallBold" themeColor={selected ? 'background' : 'text'}>
-                          {value === 'food' ? '食費' : '食費以外'}
-                        </ThemedText>
-                      </ThemedView>
-                    )}
-                  </Pressable>
-                );
-              })}
-            </View>
-            <View style={styles.inputRow}>
-              <ThemedView type="backgroundElement" style={styles.amountInputWrapper}>
-                <TextInput
-                  value={amountValue}
-                  onChangeText={setAmountValue}
-                  onSubmitEditing={handleAdd}
-                  keyboardType="number-pad"
-                  placeholder="金額"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.amountInput, { color: theme.text }]}
-                />
-              </ThemedView>
-              <Pressable onPress={handleAdd} disabled={!amountValue.trim()}>
-                {({ pressed }) => (
-                  <ThemedView
-                    type="accent"
-                    style={[styles.addButton, (pressed || !amountValue.trim()) && styles.pressed]}>
-                    <ThemedText type="smallBold" themeColor="background">
-                      記録
-                    </ThemedText>
-                  </ThemedView>
-                )}
-              </Pressable>
-            </View>
-            <Pressable onPress={() => router.push('/budget/receipt-scan' as Href)} style={styles.receiptLink}>
-              {({ pressed }) => (
-                <ThemedText type="link" themeColor="accent" style={pressed && styles.pressed}>
-                  📷 レシートから記録する
-                </ThemedText>
-              )}
-            </Pressable>
+            <CardZone
+              top="42.7%"
+              height="23.5%"
+              left="78.1%"
+              right="4.9%"
+              onPress={handleAdd}
+              disabled={!amountValue.trim()}
+            />
+            <CardZone
+              top="75.2%"
+              height="11.1%"
+              left="25.1%"
+              right="27.8%"
+              onPress={() => router.push('/budget/receipt-scan' as Href)}
+            />
           </View>
 
           {entries.length > 0 && (
             <View style={styles.section}>
               <Image source={RECENT_TITLE_IMAGE} style={styles.recentTitleImage} contentFit="contain" />
               <View style={styles.entryList}>
-                {entries.map((entry) => (
+                {entries.slice(0, 2).map((entry) => (
                   <ThemedView key={entry.id} type="backgroundElement" style={styles.entryRow}>
                     <ThemedText type="small" themeColor="textSecondary" style={styles.entryDate}>
                       {formatEntryDate(entry.createdAt)}
@@ -217,25 +234,36 @@ export default function BudgetScreen() {
             </View>
           )}
 
-          <View style={styles.stickyButtonsWrapper}>
-            <Image source={STICKY_BUTTONS_IMAGE} style={styles.stickyButtonsImage} contentFit="contain" />
-            <StickyNavButton
-              top="11.1%"
-              height="41.1%"
-              left="11.2%"
-              right="10.7%"
-              onPress={() => router.push('/budget/living-costs' as Href)}
-            />
-            <StickyNavButton
-              top="56.3%"
-              height="34.2%"
-              left="11.9%"
-              right="11.4%"
-              onPress={() => router.push('/budget/summary' as Href)}
-            />
+          <View style={styles.stickyButtonsRow}>
+            <Pressable
+              style={styles.stickyButtonHalf}
+              onPress={() => dissolveOut(() => router.push('/budget/living-costs' as Href))}>
+              {({ pressed }) => (
+                <Image
+                  source={STICKY_BUTTON_LIVING_COSTS_IMAGE}
+                  style={[styles.stickyButtonImageLivingCosts, pressed && styles.stickyButtonPressed]}
+                  contentFit="contain"
+                />
+              )}
+            </Pressable>
+            <Pressable
+              style={styles.stickyButtonHalf}
+              onPress={() => dissolveOut(() => router.push('/budget/summary' as Href))}>
+              {({ pressed }) => (
+                <Image
+                  source={STICKY_BUTTON_SUMMARY_IMAGE}
+                  style={[styles.stickyButtonImageSummary, pressed && styles.stickyButtonPressed]}
+                  contentFit="contain"
+                />
+              )}
+            </Pressable>
           </View>
         </ScrollView>
       </SafeAreaView>
+      </Animated.View>
+      <Animated.View style={[styles.absoluteFill, dissolveCurlStyle]} pointerEvents="none">
+        <Image source={PAGE_CURL_IMAGE} style={styles.absoluteFill} contentFit="cover" />
+      </Animated.View>
     </View>
   );
 }
@@ -254,7 +282,11 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   content: {
-    padding: Spacing.three,
+    // Left padding is wider than the other sides so cards clear the
+    // spiral-bound rings drawn into the notebook background art.
+    paddingLeft: Spacing.five + Spacing.one,
+    paddingRight: Spacing.three,
+    paddingVertical: Spacing.three,
     gap: Spacing.five,
   },
   summaryCardWrapper: {
@@ -281,51 +313,53 @@ const styles = StyleSheet.create({
   engelEmptyText: {
     textAlign: 'center',
   },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+  summaryValueFood: {
+    position: 'absolute',
+    top: '73%',
+    left: '20.8%',
+    transform: [{ translateX: '-50%' }],
   },
-  summaryStat: {
-    alignItems: 'center',
-    gap: Spacing.half,
+  summaryValueOther: {
+    position: 'absolute',
+    top: '73%',
+    left: '49.9%',
+    transform: [{ translateX: '-50%' }],
+  },
+  summaryValueLiving: {
+    position: 'absolute',
+    top: '73%',
+    left: '76.8%',
+    transform: [{ translateX: '-50%' }, { translateX: 8 }],
+  },
+  summaryValueText: {
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: 'center',
   },
   section: {
     gap: Spacing.two,
+    marginTop: -20,
   },
-  categoryRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
+  inputCardWrapper: {
+    width: '100%',
+    aspectRatio: INPUT_CARD_ASPECT_RATIO,
+    marginTop: -(Spacing.three + 20),
   },
-  categoryButton: {
-    alignItems: 'center',
-    paddingVertical: Spacing.two,
+  inputCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  amountPatch: {
+    backgroundColor: AMOUNT_PILL_FILL_COLOR,
     borderRadius: Spacing.three,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-    alignItems: 'center',
-  },
-  amountInputWrapper: {
-    flex: 1,
-    borderRadius: Spacing.three,
+    justifyContent: 'center',
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
   },
   amountInput: {
-    fontSize: 16,
-  },
-  addButton: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.three,
-  },
-  receiptLink: {
-    alignItems: 'center',
-    paddingTop: Spacing.one,
+    fontSize: 14,
   },
   recentTitleImage: {
-    width: 160,
+    width: 128,
     aspectRatio: RECENT_TITLE_ASPECT_RATIO,
   },
   entryList: {
@@ -348,23 +382,30 @@ const styles = StyleSheet.create({
   entryAmount: {
     marginRight: Spacing.one,
   },
-  stickyButtonsWrapper: {
-    width: '100%',
-    aspectRatio: STICKY_BUTTONS_ASPECT_RATIO,
+  stickyButtonsRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
   },
-  stickyButtonsImage: {
-    width: '100%',
-    height: '100%',
+  stickyButtonHalf: {
+    flex: 1,
   },
-  stickyButtonZone: {
+  stickyButtonImageLivingCosts: {
+    width: '100%',
+    aspectRatio: STICKY_BUTTON_LIVING_COSTS_ASPECT_RATIO,
+  },
+  stickyButtonImageSummary: {
+    width: '100%',
+    aspectRatio: STICKY_BUTTON_SUMMARY_ASPECT_RATIO,
+  },
+  stickyButtonPressed: {
+    opacity: 0.7,
+  },
+  cardZone: {
     position: 'absolute',
   },
-  stickyButtonPressedOverlay: {
+  cardZonePressedOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.08)',
     borderRadius: Spacing.three,
-  },
-  pressed: {
-    opacity: 0.7,
   },
 });

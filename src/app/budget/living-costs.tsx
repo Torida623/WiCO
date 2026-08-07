@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { Image, ImageSource } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from '@/components/screen-header';
@@ -20,30 +21,42 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { LIVING_COST_ITEMS } from '@/constants/living-cost-items';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { usePageDissolveIn } from '@/hooks/use-page-dissolve';
 import { useTheme } from '@/hooks/use-theme';
 import { formatYen, getLivingCostRecord, getMonthKey, getPreviousMonthKey, setLivingCostAmount } from '@/lib/household-budget';
 
 const NOTEBOOK_BACKGROUND = require('@/assets/images/budget/notebook-bg.jpg');
-const LIVING_COST_LABELS_IMAGE = require('@/assets/images/budget/living-cost-labels.png');
+const PAGE_CURL_IMAGE = require('@/assets/images/budget/page-curl.jpg');
+const TITLE_IMAGE = require('@/assets/images/budget/living-cost-title.png');
+const LABEL_HOUSING = require('@/assets/images/budget/living-cost-label-housing.png');
+const LABEL_ELECTRICITY = require('@/assets/images/budget/living-cost-label-electricity.png');
+const LABEL_GAS = require('@/assets/images/budget/living-cost-label-gas.png');
+const LABEL_WATER = require('@/assets/images/budget/living-cost-label-water.png');
+const LABEL_COMMUNICATION = require('@/assets/images/budget/living-cost-label-communication.png');
+const LABEL_INSURANCE = require('@/assets/images/budget/living-cost-label-insurance.png');
+const LABEL_CAR = require('@/assets/images/budget/living-cost-label-car.png');
+const LABEL_SUBSCRIPTION = require('@/assets/images/budget/living-cost-label-subscription.png');
+const LABEL_OTHER = require('@/assets/images/budget/living-cost-label-other.png');
 
-const LABEL_COLUMN_FRACTION = 0.45;
-const ROW_WRAPPER_ASPECT_RATIO = 941 / (LABEL_COLUMN_FRACTION * 1672);
+const TITLE_ASPECT_RATIO = 742 / 124;
+const LABEL_IMAGE_HEIGHT = 22;
 
-// Vertical bands (as % of the label image's own height) where each item's
-// hand-lettered label sits — measured from the source art so the amount
-// inputs on the right line up with the matching row on the left.
-const LIVING_COST_ROW_BANDS: [number, number][] = [
-  [17.1, 22.8], // 家賃
-  [26.1, 31.3], // 住居関連
-  [34.7, 40.0], // 電気
-  [43.0, 47.4], // ガス
-  [50.5, 55.5], // 水道
-  [58.5, 63.1], // スマホネット代
-  [66.1, 71.1], // 保険
-  [74.0, 79.3], // 車関連
-  [81.9, 86.7], // サブスク
-  [90.1, 94.4], // その他
-];
+const LIVING_COST_LABEL_ART: Record<string, { source: ImageSource; aspectRatio: number }> = {
+  rent: { source: LABEL_HOUSING, aspectRatio: 379 / 103 },
+  electricity: { source: LABEL_ELECTRICITY, aspectRatio: 196 / 106 },
+  gas: { source: LABEL_GAS, aspectRatio: 175 / 90 },
+  water: { source: LABEL_WATER, aspectRatio: 198 / 99 },
+  communication: { source: LABEL_COMMUNICATION, aspectRatio: 528 / 94 },
+  insurance: { source: LABEL_INSURANCE, aspectRatio: 197 / 98 },
+  car: { source: LABEL_CAR, aspectRatio: 290 / 106 },
+  subscription: { source: LABEL_SUBSCRIPTION, aspectRatio: 302 / 97 },
+  other: { source: LABEL_OTHER, aspectRatio: 254 / 89 },
+};
+
+function ItemLabel({ itemId }: { itemId: string }) {
+  const art = LIVING_COST_LABEL_ART[itemId];
+  return <Image source={art.source} style={{ height: LABEL_IMAGE_HEIGHT, aspectRatio: art.aspectRatio }} contentFit="contain" />;
+}
 
 const ACCESSORY_BAR_HEIGHT = 52;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -68,6 +81,7 @@ function useKeyboardHeight(): number {
 
 export default function LivingCostsScreen() {
   const theme = useTheme();
+  const { contentStyle: dissolveContentStyle, curlStyle: dissolveCurlStyle } = usePageDissolveIn();
   const keyboardHeight = useKeyboardHeight();
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [previousAmounts, setPreviousAmounts] = useState<Record<string, number>>({});
@@ -130,6 +144,7 @@ export default function LivingCostsScreen() {
   return (
     <View style={styles.flex}>
       <Image source={NOTEBOOK_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
+      <Animated.View style={[styles.flex, dissolveContentStyle]}>
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScreenHeader onBack={() => router.back()} />
@@ -145,38 +160,42 @@ export default function LivingCostsScreen() {
             keyboardHeight > 0 && { paddingBottom: keyboardHeight + ACCESSORY_BAR_HEIGHT },
           ]}
           keyboardShouldPersistTaps="handled">
-          <View style={styles.rowsWrapper}>
-            <Image source={LIVING_COST_LABELS_IMAGE} style={styles.labelsImage} contentFit="contain" />
-            <View style={styles.inputColumn}>
-              {LIVING_COST_ITEMS.map((item, index) => {
-                const [top, bottom] = LIVING_COST_ROW_BANDS[index];
-                const previous = previousAmounts[item.id];
-                return (
-                  <View
-                    key={item.id}
-                    style={[styles.inputRowAbsolute, { top: `${top}%`, height: `${bottom - top}%` }]}>
-                    <ThemedView type="backgroundElement" style={styles.inputWrapper}>
-                      <TextInput
-                        ref={(ref) => {
-                          inputRefs.current[item.id] = ref;
-                        }}
-                        value={amounts[item.id] ?? ''}
-                        onChangeText={(value) => handleChangeText(item.id, value)}
-                        onFocus={() => {
-                          focusedItemIdRef.current = item.id;
-                          scrollItemIntoView(item.id, keyboardHeight);
-                        }}
-                        onEndEditing={() => handleSave(item.id)}
-                        keyboardType="number-pad"
-                        placeholder={previous !== undefined ? `前月：${formatYen(previous)}` : '金額'}
-                        placeholderTextColor={theme.textSecondary}
-                        style={[styles.input, { color: theme.text }]}
-                      />
-                    </ThemedView>
+          <Image source={TITLE_IMAGE} style={styles.titleImage} contentFit="contain" />
+
+          <View style={styles.rows}>
+            {LIVING_COST_ITEMS.map((item) => {
+              const previous = previousAmounts[item.id];
+              return (
+                <View key={item.id} style={styles.row}>
+                  <View style={styles.labelColumn}>
+                    <ItemLabel itemId={item.id} />
                   </View>
-                );
-              })}
-            </View>
+                  <ThemedView type="backgroundElement" style={styles.inputWrapper}>
+                    {!!amounts[item.id] && (
+                      <ThemedText type="small" themeColor="textSecondary">
+                        ¥
+                      </ThemedText>
+                    )}
+                    <TextInput
+                      ref={(ref) => {
+                        inputRefs.current[item.id] = ref;
+                      }}
+                      value={amounts[item.id] ?? ''}
+                      onChangeText={(value) => handleChangeText(item.id, value)}
+                      onFocus={() => {
+                        focusedItemIdRef.current = item.id;
+                        scrollItemIntoView(item.id, keyboardHeight);
+                      }}
+                      onEndEditing={() => handleSave(item.id)}
+                      keyboardType="number-pad"
+                      placeholder={previous !== undefined ? `前月：${formatYen(previous)}` : '金額'}
+                      placeholderTextColor={theme.textSecondary}
+                      style={[styles.input, { color: theme.text }]}
+                    />
+                  </ThemedView>
+                </View>
+              );
+            })}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -194,6 +213,10 @@ export default function LivingCostsScreen() {
           </ThemedView>
         </View>
       )}
+      </Animated.View>
+      <Animated.View style={[styles.absoluteFill, dissolveCurlStyle]} pointerEvents="none">
+        <Image source={PAGE_CURL_IMAGE} style={styles.absoluteFill} contentFit="cover" />
+      </Animated.View>
     </View>
   );
 }
@@ -212,32 +235,44 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   content: {
-    padding: Spacing.three,
+    flexGrow: 1,
+    // Left padding is wider than the other sides so the label column clears
+    // the spiral-bound rings drawn into the notebook background art.
+    paddingLeft: Spacing.five + Spacing.one,
+    paddingRight: Spacing.three,
+    paddingVertical: Spacing.four,
   },
-  rowsWrapper: {
-    width: '100%',
-    aspectRatio: ROW_WRAPPER_ASPECT_RATIO,
-    flexDirection: 'row',
+  titleImage: {
+    width: 260,
+    aspectRatio: TITLE_ASPECT_RATIO,
+    alignSelf: 'center',
+    marginBottom: Spacing.four,
   },
-  labelsImage: {
-    width: `${LABEL_COLUMN_FRACTION * 100}%`,
-    height: '100%',
-  },
-  inputColumn: {
+  rows: {
     flex: 1,
+    justifyContent: 'space-between',
+    paddingBottom: Spacing.five,
   },
-  inputRowAbsolute: {
-    position: 'absolute',
-    left: Spacing.one,
-    right: Spacing.three,
-    justifyContent: 'center',
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  labelColumn: {
+    width: 150,
+    alignItems: 'center',
   },
   inputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.half,
     borderRadius: Spacing.three,
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.one,
   },
   input: {
+    flex: 1,
     fontSize: 15,
   },
   accessoryBarWrapper: {

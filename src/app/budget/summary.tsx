@@ -1,6 +1,8 @@
+import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from '@/components/screen-header';
@@ -9,6 +11,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { LIVING_COST_ITEMS } from '@/constants/living-cost-items';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { usePageDissolveIn } from '@/hooks/use-page-dissolve';
 import {
   formatYen,
   formatYenDiff,
@@ -18,6 +21,8 @@ import {
   getPreviousMonthKey,
   MonthSummary,
 } from '@/lib/household-budget';
+
+const PAGE_CURL_IMAGE = require('@/assets/images/budget/page-curl.jpg');
 
 function CompareLine({ label, current, previous }: { label: string; current: number; previous: number }) {
   return (
@@ -40,6 +45,7 @@ function formatDiffPercent(diff: number): string {
 }
 
 export default function BudgetSummaryScreen() {
+  const { contentStyle: dissolveContentStyle, curlStyle: dissolveCurlStyle } = usePageDissolveIn();
   const [currentSummary, setCurrentSummary] = useState<MonthSummary | null>(null);
   const [previousSummary, setPreviousSummary] = useState<MonthSummary | null>(null);
   const [currentLivingCosts, setCurrentLivingCosts] = useState<Record<string, number>>({});
@@ -79,10 +85,12 @@ export default function BudgetSummaryScreen() {
   );
 
   return (
-    <ThemedView style={styles.container}>
-      <SideMenu />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="先月と比べる" onBack={() => router.back()} />
+    <View style={styles.flex}>
+      <Animated.View style={[styles.flex, dissolveContentStyle]}>
+      <ThemedView style={styles.container}>
+        <SideMenu />
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+          <ScreenHeader title="先月と比べる" onBack={() => router.back()} />
 
         {!hasPreviousData ? (
           <View style={styles.emptyState}>
@@ -131,12 +139,23 @@ export default function BudgetSummaryScreen() {
             )}
           </ScrollView>
         )}
-      </SafeAreaView>
-    </ThemedView>
+        </SafeAreaView>
+      </ThemedView>
+      </Animated.View>
+      <Animated.View style={[styles.curlOverlay, dissolveCurlStyle]} pointerEvents="none">
+        <Image source={PAGE_CURL_IMAGE} style={styles.flex} contentFit="cover" />
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
+  curlOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
   container: {
     flex: 1,
   },
