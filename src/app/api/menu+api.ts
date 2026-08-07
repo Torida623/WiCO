@@ -94,21 +94,37 @@ const REVISION_RESPONSE_SCHEMA = {
 const FINAL_SYSTEM_PROMPT = `あなたは家庭料理の献立を提案するアプリ「WiCO」のマスコット「ペロココ」です。
 直前に確定した献立について、材料と作り方を教えてください。
 
-冒頭の一言だけはペロココらしく、フレンドリーで明るいタメ口（だ・よ調）にしてください。
-それ以外の【材料】【作り方】の部分はペロココの話し言葉ではなく、実際のレシピ本に書かれているような文体にしてください。「〜だよ」「〜してね」のような話しかける言い方や、「です」「ます」などの敬語は使わず、「〜を切る。」「〜を加えて炒める。」のように動詞の言い切り（辞書形）で簡潔に書いてください。
+ペロココの話し言葉ではなく、実際のレシピ本に書かれているような文体にしてください。「〜だよ」「〜してね」のような話しかける言い方や、「です」「ます」などの敬語は使わず、「〜を切る。」「〜を加えて炒める。」のように動詞の言い切り（辞書形）で簡潔に書いてください。
 
-以下のフォーマットのみで応答してください。前置きや説明文、マークダウンの太字(**)などの記法は使わないでください。
+指定されたJSON形式で応答してください。
+・ingredients: 材料の配列。nameには材料名のみ、amountには指定された人数分の分量（単位を含む）を入れてください。
+・steps: 作り方の配列。1手順につき1つの文字列にしてください。`;
 
-献立が決まりました！
+const FINAL_RESPONSE_SCHEMA = {
+  type: 'object' as const,
+  properties: {
+    ingredients: {
+      type: 'array' as const,
+      items: {
+        type: 'object' as const,
+        properties: { name: { type: 'string' }, amount: { type: 'string' } },
+        required: ['name', 'amount'],
+        additionalProperties: false,
+      },
+    },
+    steps: { type: 'array' as const, items: { type: 'string' } },
+  },
+  required: ['ingredients', 'steps'],
+  additionalProperties: false,
+};
 
-【材料】(指定された人数分)
-・材料名 分量
-・材料名 分量
-
-【作り方】
-1. 手順
-2. 手順
-3. 手順`;
+function buildFinalText(ingredients: { name: string; amount: string }[], steps: string[]): string {
+  const lines = ['献立が決まりました！', '', '【材料】(指定された人数分)'];
+  ingredients.forEach((i) => lines.push(`・${i.name} ${i.amount}`));
+  lines.push('', '【作り方】');
+  steps.forEach((s, idx) => lines.push(`${idx + 1}. ${s}`));
+  return lines.join('\n');
+}
 
 const CUISINE_STYLES = ['和食', '洋食', '中華', 'エスニック', 'ジャンルにこだわらない自由な発想'];
 
@@ -208,6 +224,10 @@ export async function POST(request: Request) {
     const proposalText: string = body.proposalText ?? '';
     const response = await createJapaneseChatCompletion(openai, {
       model: JAPANESE_CHAT_MODEL,
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: 'menu_final', strict: true, schema: FINAL_RESPONSE_SCHEMA },
+      },
       messages: [
         { role: 'system', content: FINAL_SYSTEM_PROMPT },
         { role: 'user', content: summarizeAnswers(answers) },
@@ -215,8 +235,12 @@ export async function POST(request: Request) {
         { role: 'user', content: 'この献立で確定しました。材料と作り方を教えてください。' },
       ],
     });
-    const text = response.choices[0]?.message.content ?? '';
-    return Response.json({ message: text });
+    const raw = response.choices[0]?.message.content ?? '{}';
+    const parsed = JSON.parse(raw);
+    const ingredients: { name: string; amount: string }[] = parsed.ingredients ?? [];
+    const steps: string[] = parsed.steps ?? [];
+    const text = buildFinalText(ingredients, steps);
+    return Response.json({ message: text, ingredients });
   } catch (error) {
     console.error(error);
     return Response.json({ message: 'AIとの通信でエラーが発生しました。しばらくしてからもう一度お試しください。' }, { status: 500 });

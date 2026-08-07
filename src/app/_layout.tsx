@@ -34,6 +34,12 @@ const MEAL_LOG_BGM_VOLUME = 0.4;
 const MEAL_LOG_BGM_FADE_START_MS = 139_000;
 const MEAL_LOG_BGM_FADE_IN_MS = 600;
 
+// 1:05 track
+const BUDGET_BGM = require('@/assets/audio/budget-bgm.mp3');
+const BUDGET_BGM_VOLUME = 0.4;
+const BUDGET_BGM_FADE_START_MS = 63_000;
+const BUDGET_BGM_FADE_IN_MS = 600;
+
 type Stage = 'entrance' | 'menu' | 'app';
 
 export default function TabLayout() {
@@ -51,13 +57,26 @@ export default function TabLayout() {
   // of only starting that download the moment its own screen mounts (which
   // is what caused the audible startup delay/silence on meal-log before).
   useLoopingBgm(titleBgm.source, TITLE_BGM_VOLUME, stage !== 'app', titleBgm.fadeStartMs, titleBgm.fadeInMs);
-  useLoopingBgm(MEAL_BGM, MEAL_BGM_VOLUME, stage === 'app' && pathname === '/', MEAL_BGM_FADE_START_MS, 0);
+  useLoopingBgm(
+    MEAL_BGM,
+    MEAL_BGM_VOLUME,
+    stage === 'app' && (pathname === '/' || pathname === '/menu-chat'),
+    MEAL_BGM_FADE_START_MS,
+    0,
+  );
   useLoopingBgm(
     MEAL_LOG_BGM,
     MEAL_LOG_BGM_VOLUME,
     stage === 'app' && pathname.startsWith('/meal-log'),
     MEAL_LOG_BGM_FADE_START_MS,
     MEAL_LOG_BGM_FADE_IN_MS,
+  );
+  useLoopingBgm(
+    BUDGET_BGM,
+    BUDGET_BGM_VOLUME,
+    stage === 'app' && pathname.startsWith('/budget'),
+    BUDGET_BGM_FADE_START_MS,
+    BUDGET_BGM_FADE_IN_MS,
   );
 
   useEffect(() => {
@@ -89,6 +108,8 @@ export default function TabLayout() {
           <TitleMenuScreen
             onSelectMenuProposal={() => transitionTo('app')}
             onSelectMealMemories={() => transitionTo('app', '/meal-log' as Href)}
+            onSelectShoppingMemo={() => transitionTo('app', '/shopping-memo' as Href)}
+            onSelectBudget={() => transitionTo('app', '/budget' as Href)}
           />
         )}
         {stage === 'app' && <AppTabs />}
