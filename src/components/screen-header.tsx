@@ -1,7 +1,12 @@
+import { Image } from 'expo-image';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+
+const BACK_BUTTON_IMAGE = require('@/assets/images/ui/nav-back-bread.png');
+const BACK_BUTTON_ASPECT_RATIO = 971 / 924;
+const BACK_BUTTON_SIZE = 44;
 
 const SIDE_SLOT_WIDTH = Spacing.six + Spacing.four;
 
@@ -23,9 +28,15 @@ export function ScreenHeader({ title, onBack }: ScreenHeaderProps) {
         {onBack && (
           <Pressable onPress={onBack} hitSlop={8}>
             {({ pressed }) => (
-              <ThemedText type="link" themeColor="accent" style={pressed && styles.pressed}>
-                戻る
-              </ThemedText>
+              <Image
+                source={BACK_BUTTON_IMAGE}
+                style={[
+                  styles.backButtonImage,
+                  { aspectRatio: BACK_BUTTON_ASPECT_RATIO },
+                  pressed && styles.pressed,
+                ]}
+                contentFit="contain"
+              />
             )}
           </Pressable>
         )}
@@ -49,6 +60,9 @@ const styles = StyleSheet.create({
   },
   sideSlot: {
     width: SIDE_SLOT_WIDTH,
+  },
+  backButtonImage: {
+    height: BACK_BUTTON_SIZE,
   },
   title: {
     flex: 1,

@@ -1,42 +1,54 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-// A page-curl illustration bridges the outgoing and incoming screens: the
-// current page dissolves into it, then it dissolves into the next page —
-// two crossfades chained together rather than a literal 3D flip (which
-// doesn't render inside Expo Go without a custom dev client).
+// A single page-curl "curtain" is mounted once per stack (in its _layout),
+// on top of every screen. To navigate with the dissolve effect: fade the
+// curtain in (opaque JPG, so it fully hides whatever's currently on
+// screen) → run the navigation while completely hidden behind it → fade
+// the curtain back out, revealing whatever screen is now active.
+//
+// Nothing about this needs per-screen state: the curtain always starts and
+// ends at opacity 0, so there's no stale "still dissolved" state left
+// behind on a screen to forget to reset — the same curtain instance and
+// the same playPageDissolve() call handle both forward navigation and
+// going back.
 const FADE_MS = 220;
 const HOLD_MS = 90;
 
-export function usePageDissolveOut() {
-  const contentOpacity = useSharedValue(1);
-  const curlOpacity = useSharedValue(0);
+let activePlay: ((action: () => void) => void) | null = null;
 
-  const contentStyle = useAnimatedStyle(() => ({ opacity: contentOpacity.value }));
-  const curlStyle = useAnimatedStyle(() => ({ opacity: curlOpacity.value }));
-
-  function dissolveOut(onMidpoint: () => void) {
-    contentOpacity.value = withTiming(0, { duration: FADE_MS, easing: Easing.out(Easing.quad) });
-    curlOpacity.value = withTiming(1, { duration: FADE_MS, easing: Easing.out(Easing.quad) }, (finished) => {
-      if (finished) scheduleOnRN(onMidpoint);
-    });
+/** Runs `action` (typically a router.push/back call) behind the page-curl dissolve. Falls back to calling it directly if no curtain is mounted. */
+export function playPageDissolve(action: () => void) {
+  if (activePlay) {
+    activePlay(action);
+  } else {
+    action();
   }
-
-  return { contentStyle, curlStyle, dissolveOut };
 }
 
-export function usePageDissolveIn() {
-  const contentOpacity = useSharedValue(0);
-  const curlOpacity = useSharedValue(1);
-
-  useEffect(() => {
-    curlOpacity.value = withDelay(HOLD_MS, withTiming(0, { duration: FADE_MS, easing: Easing.in(Easing.quad) }));
-    contentOpacity.value = withDelay(HOLD_MS, withTiming(1, { duration: FADE_MS, easing: Easing.in(Easing.quad) }));
-  }, [contentOpacity, curlOpacity]);
-
-  const contentStyle = useAnimatedStyle(() => ({ opacity: contentOpacity.value }));
+/** Mount once per stack layout; render the returned `curlStyle` on a full-bleed page-curl image absolutely positioned above the Stack. */
+export function usePageDissolveCurtain() {
+  const curlOpacity = useSharedValue(0);
   const curlStyle = useAnimatedStyle(() => ({ opacity: curlOpacity.value }));
 
-  return { contentStyle, curlStyle };
+  const play = useCallback(
+    (action: () => void) => {
+      curlOpacity.value = withTiming(1, { duration: FADE_MS, easing: Easing.out(Easing.quad) }, (finished) => {
+        if (!finished) return;
+        scheduleOnRN(action);
+        curlOpacity.value = withDelay(HOLD_MS, withTiming(0, { duration: FADE_MS, easing: Easing.in(Easing.quad) }));
+      });
+    },
+    [curlOpacity],
+  );
+
+  useEffect(() => {
+    activePlay = play;
+    return () => {
+      if (activePlay === play) activePlay = null;
+    };
+  }, [play]);
+
+  return { curlStyle };
 }

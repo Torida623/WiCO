@@ -164,3 +164,51 @@ export function formatYenDiff(diff: number): string {
   const sign = rounded > 0 ? '＋' : '−';
   return `${sign}${formatYen(Math.abs(rounded))}`;
 }
+
+/** Fills in sample food/other entries and living-cost amounts for this month and last, so the 先月と比べる screen has something to render before any real data exists. */
+export async function seedDemoComparisonData(): Promise<void> {
+  const now = new Date();
+  const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 10);
+  const monthKey = getMonthKey(now);
+  const previousMonthKey = getMonthKey(previousMonthDate);
+
+  await Promise.all([
+    addExpenseEntry({ amount: 15000, category: 'food' }),
+    addExpenseEntry({ amount: 8200, category: 'food' }),
+    addExpenseEntry({ amount: 9000, category: 'other' }),
+    addExpenseEntry({ amount: 18000, category: 'food', occurredAt: previousMonthDate }),
+    addExpenseEntry({ amount: 9500, category: 'food', occurredAt: previousMonthDate }),
+    addExpenseEntry({ amount: 7000, category: 'other', occurredAt: previousMonthDate }),
+    addExpenseEntry({ amount: 5000, category: 'other', occurredAt: previousMonthDate }),
+  ]);
+
+  const currentLivingCosts: Record<string, number> = {
+    rent: 65000,
+    electricity: 7800,
+    gas: 3600,
+    water: 3000,
+    communication: 6200,
+    insurance: 5000,
+    car: 10000,
+    subscription: 2400,
+    other: 2000,
+  };
+  const previousLivingCosts: Record<string, number> = {
+    rent: 65000,
+    electricity: 9200,
+    gas: 5100,
+    water: 3200,
+    communication: 6200,
+    insurance: 5000,
+    car: 10000,
+    subscription: 1900,
+    other: 2600,
+  };
+
+  await Promise.all([
+    ...Object.entries(currentLivingCosts).map(([itemId, amount]) => setLivingCostAmount(monthKey, itemId, amount)),
+    ...Object.entries(previousLivingCosts).map(([itemId, amount]) =>
+      setLivingCostAmount(previousMonthKey, itemId, amount),
+    ),
+  ]);
+}

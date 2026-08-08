@@ -2,7 +2,6 @@ import { Image } from 'expo-image';
 import { Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { DimensionValue, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from '@/components/screen-header';
@@ -10,7 +9,7 @@ import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { usePageDissolveOut } from '@/hooks/use-page-dissolve';
+import { playPageDissolve } from '@/hooks/use-page-dissolve';
 import { useTheme } from '@/hooks/use-theme';
 import {
   addExpenseEntry,
@@ -25,19 +24,33 @@ import {
 } from '@/lib/household-budget';
 
 const NOTEBOOK_BACKGROUND = require('@/assets/images/budget/notebook-bg.jpg');
-const PAGE_CURL_IMAGE = require('@/assets/images/budget/page-curl.jpg');
 const SUMMARY_CARD_IMAGE = require('@/assets/images/budget/summary-card.png');
 const RECENT_TITLE_IMAGE = require('@/assets/images/budget/recent-title.png');
 const STICKY_BUTTON_LIVING_COSTS_IMAGE = require('@/assets/images/budget/sticky-button-living-costs.png');
 const STICKY_BUTTON_SUMMARY_IMAGE = require('@/assets/images/budget/sticky-button-summary.png');
-const INPUT_CARD_FOOD_IMAGE = require('@/assets/images/budget/input-card-food.png');
-const INPUT_CARD_OTHER_IMAGE = require('@/assets/images/budget/input-card-other.png');
+// A single neutral base (both buttons unselected) plus two small pill
+// cutouts dropped in on top of it, instead of two whole-card images swapped
+// by category — the two whole-card versions were independently generated
+// art, so every hand-drawn line on the card (not just the buttons) shifted
+// by a pixel or two between them, reading as a "jiggle" on every toggle.
+const INPUT_CARD_BASE_IMAGE = require('@/assets/images/budget/input-card-base.png');
+const INPUT_CARD_PILL_FOOD_IMAGE = require('@/assets/images/budget/input-card-pill-food.png');
+const INPUT_CARD_PILL_OTHER_IMAGE = require('@/assets/images/budget/input-card-pill-other.png');
 
 const SUMMARY_CARD_ASPECT_RATIO = 1536 / 1024;
 const STICKY_BUTTON_LIVING_COSTS_ASPECT_RATIO = 1211 / 433;
 const STICKY_BUTTON_SUMMARY_ASPECT_RATIO = 1190 / 362;
 const INPUT_CARD_ASPECT_RATIO = 1360 / 741;
 const RECENT_TITLE_ASPECT_RATIO = 1004 / 215;
+
+// The pill cutouts' position/size as a percentage of the full 1360×741 card
+// canvas, matching exactly where they were cropped from — keeps them
+// pixel-aligned with the neutral button drawn into the base card.
+function pct(value: number, of: number): `${number}%` {
+  return `${(value / of) * 100}%`;
+}
+const PILL_FOOD_BOX = { top: pct(138, 741), left: pct(49, 1360), width: pct(609, 1360), height: pct(174, 741) };
+const PILL_OTHER_BOX = { top: pct(138, 741), left: pct(691, 1360), width: pct(602, 1360), height: pct(174, 741) };
 
 // The amount field shows live typed digits over baked-in "金額" placeholder
 // art, so that patch of the card needs an opaque cover in the pill's own
@@ -75,7 +88,6 @@ function CardZone({
 
 export default function BudgetScreen() {
   const theme = useTheme();
-  const { contentStyle: dissolveContentStyle, curlStyle: dissolveCurlStyle, dissolveOut } = usePageDissolveOut();
   const [entries, setEntries] = useState<ExpenseEntry[]>([]);
   const [summary, setSummary] = useState<MonthSummary | null>(null);
   const [amountValue, setAmountValue] = useState('');
@@ -113,7 +125,6 @@ export default function BudgetScreen() {
   return (
     <View style={styles.flex}>
       <Image source={NOTEBOOK_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
-      <Animated.View style={[styles.flex, dissolveContentStyle]}>
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScreenHeader onBack={() => router.back()} />
@@ -173,10 +184,18 @@ export default function BudgetScreen() {
           </View>
 
           <View style={styles.inputCardWrapper}>
+            <Image source={INPUT_CARD_BASE_IMAGE} style={styles.inputCardImage} contentFit="contain" />
+            {/* Both pills stay mounted (just toggled by opacity) so switching
+                category never waits on decoding a freshly-swapped source. */}
             <Image
-              source={category === 'food' ? INPUT_CARD_FOOD_IMAGE : INPUT_CARD_OTHER_IMAGE}
-              style={styles.inputCardImage}
-              contentFit="contain"
+              source={INPUT_CARD_PILL_FOOD_IMAGE}
+              style={[styles.inputCardPill, PILL_FOOD_BOX, category !== 'food' && styles.inputCardImageHidden]}
+              contentFit="fill"
+            />
+            <Image
+              source={INPUT_CARD_PILL_OTHER_IMAGE}
+              style={[styles.inputCardPill, PILL_OTHER_BOX, category !== 'other' && styles.inputCardImageHidden]}
+              contentFit="fill"
             />
             <CardZone top="18.6%" height="23.5%" left="3.6%" right="51.6%" onPress={() => setCategory('food')} />
             <CardZone top="18.6%" height="23.5%" left="50.8%" right="4.9%" onPress={() => setCategory('other')} />
@@ -237,7 +256,7 @@ export default function BudgetScreen() {
           <View style={styles.stickyButtonsRow}>
             <Pressable
               style={styles.stickyButtonHalf}
-              onPress={() => dissolveOut(() => router.push('/budget/living-costs' as Href))}>
+              onPress={() => playPageDissolve(() => router.push('/budget/living-costs' as Href))}>
               {({ pressed }) => (
                 <Image
                   source={STICKY_BUTTON_LIVING_COSTS_IMAGE}
@@ -248,7 +267,7 @@ export default function BudgetScreen() {
             </Pressable>
             <Pressable
               style={styles.stickyButtonHalf}
-              onPress={() => dissolveOut(() => router.push('/budget/summary' as Href))}>
+              onPress={() => playPageDissolve(() => router.push('/budget/summary' as Href))}>
               {({ pressed }) => (
                 <Image
                   source={STICKY_BUTTON_SUMMARY_IMAGE}
@@ -260,10 +279,6 @@ export default function BudgetScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
-      </Animated.View>
-      <Animated.View style={[styles.absoluteFill, dissolveCurlStyle]} pointerEvents="none">
-        <Image source={PAGE_CURL_IMAGE} style={styles.absoluteFill} contentFit="cover" />
-      </Animated.View>
     </View>
   );
 }
@@ -348,6 +363,12 @@ const styles = StyleSheet.create({
   inputCardImage: {
     width: '100%',
     height: '100%',
+  },
+  inputCardPill: {
+    position: 'absolute',
+  },
+  inputCardImageHidden: {
+    opacity: 0,
   },
   amountPatch: {
     backgroundColor: AMOUNT_PILL_FILL_COLOR,

@@ -12,7 +12,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from '@/components/screen-header';
@@ -21,12 +20,11 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { LIVING_COST_ITEMS } from '@/constants/living-cost-items';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { usePageDissolveIn } from '@/hooks/use-page-dissolve';
+import { playPageDissolve } from '@/hooks/use-page-dissolve';
 import { useTheme } from '@/hooks/use-theme';
 import { formatYen, getLivingCostRecord, getMonthKey, getPreviousMonthKey, setLivingCostAmount } from '@/lib/household-budget';
 
 const NOTEBOOK_BACKGROUND = require('@/assets/images/budget/notebook-bg.jpg');
-const PAGE_CURL_IMAGE = require('@/assets/images/budget/page-curl.jpg');
 const TITLE_IMAGE = require('@/assets/images/budget/living-cost-title.png');
 const LABEL_HOUSING = require('@/assets/images/budget/living-cost-label-housing.png');
 const LABEL_ELECTRICITY = require('@/assets/images/budget/living-cost-label-electricity.png');
@@ -81,7 +79,6 @@ function useKeyboardHeight(): number {
 
 export default function LivingCostsScreen() {
   const theme = useTheme();
-  const { contentStyle: dissolveContentStyle, curlStyle: dissolveCurlStyle } = usePageDissolveIn();
   const keyboardHeight = useKeyboardHeight();
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [previousAmounts, setPreviousAmounts] = useState<Record<string, number>>({});
@@ -144,10 +141,9 @@ export default function LivingCostsScreen() {
   return (
     <View style={styles.flex}>
       <Image source={NOTEBOOK_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
-      <Animated.View style={[styles.flex, dissolveContentStyle]}>
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.back()} />
+        <ScreenHeader onBack={() => playPageDissolve(() => router.back())} />
 
         <ScrollView
           ref={scrollViewRef}
@@ -213,10 +209,6 @@ export default function LivingCostsScreen() {
           </ThemedView>
         </View>
       )}
-      </Animated.View>
-      <Animated.View style={[styles.absoluteFill, dissolveCurlStyle]} pointerEvents="none">
-        <Image source={PAGE_CURL_IMAGE} style={styles.absoluteFill} contentFit="cover" />
-      </Animated.View>
     </View>
   );
 }

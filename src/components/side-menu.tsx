@@ -106,9 +106,9 @@ const styles = StyleSheet.create({
   buttonPressable: {
     padding: Spacing.three,
     // Pulls the button's own center (padding 16 + half of the 60px image = 46)
-    // up to match ScreenHeader's "戻る" link center (paddingVertical 8 + half
-    // of its 30px line height = 23), so the two sit on the same visual line.
-    marginTop: -23,
+    // up to match ScreenHeader's back button center (paddingVertical 8 + half
+    // of its 44px height = 30), so the two sit on the same visual line.
+    marginTop: -16,
   },
   buttonImage: {
     width: SIDE_MENU_BUTTON_SIZE,
