@@ -25,6 +25,7 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { fetchWithTimeout, getApiUrl } from '@/lib/api';
 import { importMealPhoto, MealType, NutritionBalance, saveMealRecord, searchMealRecords } from '@/lib/meal-records';
 
+const KITCHEN_BACKGROUND = require('@/assets/images/meal-log/kitchen-bg.jpg');
 const MASCOT_READING_IMAGE = require('@/assets/images/meal-log/mascot-reading-book.png');
 const SPEECH_BUBBLE_IMAGE = require('@/assets/images/meal-log/speech-bubble-cloud.png');
 const SPEECH_BUBBLE_ASPECT_RATIO = 1398 / 1125;
@@ -208,7 +209,8 @@ export default function NewMealRecordScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
+      <Image source={KITCHEN_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScreenHeader title="記録する" onBack={() => router.back()} />
@@ -375,13 +377,16 @@ export default function NewMealRecordScreen() {
           </ScrollView>
         )}
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  absoluteFill: {
+    ...StyleSheet.absoluteFillObject,
   },
   flex: {
     flex: 1,

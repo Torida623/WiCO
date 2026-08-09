@@ -32,6 +32,7 @@ import {
   EntryPoint,
   FORMAT_TAG_OPTIONS,
   GENRE_TAG_OPTIONS,
+  PinnedDish,
   SHOPPING_OPTIONS,
   StepId,
   TASTE_TAG_OPTIONS,
@@ -43,8 +44,9 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { isDaytime } from '@/constants/time-of-day';
 import { useTheme } from '@/hooks/use-theme';
 import { fetchWithTimeout, getApiUrl } from '@/lib/api';
-import { saveDecidedMenu } from '@/lib/decided-menus';
+import { DecidedDish, saveDecidedMenu } from '@/lib/decided-menus';
 import { listAllergyFavorites, listDislikedIngredients, setAllergyFavorite } from '@/lib/food-preferences';
+import { listRecipes, SavedRecipe } from '@/lib/recipes';
 
 const ROOM_BACKGROUND = require('@/assets/images/perokoko-room-bg.jpg');
 const ROOM_BACKGROUND_NO_BOOK = require('@/assets/images/perokoko-room-bg-nobook.jpg');
@@ -58,7 +60,7 @@ const OK_BUTTON_SIZE = 72;
 
 const MENU_FETCH_TIMEOUT_MS = 30_000;
 
-type MenuFetchResult = { message: string; ingredients?: { name: string; amount: string }[] };
+type MenuFetchResult = { message: string; dishes?: DecidedDish[] };
 
 async function fetchMenuMessage(
   mode: 'proposal' | 'final',
@@ -84,6 +86,31 @@ async function fetchMenuMessage(
 function extractBookContent(text: string): string {
   const splitIndex = text.indexOf('【材料】');
   return splitIndex >= 0 ? text.slice(splitIndex) : text;
+}
+
+/** Best-effort split of a bookContent string (【材料】/【作り方】format) into structured ingredients/steps, used when pinning a saved recipe into the menu chat. */
+function parseBookContent(bookContent: string): { ingredients: { name: string; amount: string }[]; steps: string[] } {
+  const stepsIndex = bookContent.indexOf('【作り方】');
+  const ingredientsBlock = stepsIndex >= 0 ? bookContent.slice(0, stepsIndex) : bookContent;
+  const stepsBlock = stepsIndex >= 0 ? bookContent.slice(stepsIndex) : '';
+
+  const ingredients = ingredientsBlock
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('・'))
+    .map((line) => {
+      const text = line.slice(1).trim();
+      const match = text.match(/^(.*?)[\s　]+([\d０-９].*)$/);
+      return match ? { name: match[1].trim(), amount: match[2].trim() } : { name: text, amount: '' };
+    });
+
+  const steps = stepsBlock
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && line !== '【作り方】')
+    .map((line) => line.replace(/^\d+[.．]\s*/, ''));
+
+  return { ingredients, steps };
 }
 
 type Message =
@@ -114,12 +141,14 @@ function getStepMessage(step: Exclude<StepId, 'proposal' | 'final'>, answers: An
       return `${MEAL_REACTION[answers.entryPoint!]}\n今日は何人で食べるの？`;
     case 'cookingTime':
       return `${answers.people}人分だね！どれくらい時間をかけられそう？`;
-    case 'moodAndAllergy':
+    case 'allergy':
       if (answers.cookingTime) {
         const timeLabel = answers.cookingTime === 'relaxed' ? '時間をかけて' : 'ぱぱっと';
-        return `${timeLabel}作るんだね！どんなものが食べたいかな？アレルギーや苦手な食材があったら教えてね！`;
+        return `${timeLabel}作るんだね！\n食べられない物があったら教えてね！`;
       }
-      return `${answers.people}人で食べるんだ！OKだよ！\n何か食べたいものはある？\nアレルギーや苦手な食材があったら、それも教えてね！`;
+      return `${answers.people}人で食べるんだ！OKだよ！\n食べられない物があったら教えてね！`;
+    case 'mood':
+      return 'どんなものが食べたいかな？';
     case 'ingredients':
       if (answers.entryPoint === 'breakfast') return '朝ごはんに使ってもいい食材を教えてほしいな！';
       return 'OK！家にある食材や早めに使いたいものがあれば教えてほしいな！';
@@ -158,11 +187,14 @@ export default function MealChatScreen() {
   const [showMoodTray, setShowMoodTray] = useState(false);
   const [showAllergyPicker, setShowAllergyPicker] = useState(false);
   const [showingRecipeDetail, setShowingRecipeDetail] = useState(false);
+  const [pinnedDish, setPinnedDish] = useState<PinnedDish | null>(null);
+  const [showRecipePicker, setShowRecipePicker] = useState(false);
+  const [savedRecipesForPicker, setSavedRecipesForPicker] = useState<SavedRecipe[]>([]);
   const lastProposalRef = useRef('');
   const finalDetailsRef = useRef<{
     proposal: string;
     content: string;
-    ingredients: { name: string; amount: string }[];
+    dishes: DecidedDish[];
   } | null>(null);
   const messageIdRef = useRef(1);
   const mascotOpacity = useSharedValue(1);
@@ -247,7 +279,7 @@ export default function MealChatScreen() {
 
   async function getFinalDetails(
     currentAnswers: Answers,
-  ): Promise<{ content: string; ingredients: { name: string; amount: string }[] }> {
+  ): Promise<{ content: string; dishes: DecidedDish[] }> {
     if (finalDetailsRef.current && finalDetailsRef.current.proposal === lastProposalRef.current) {
       return finalDetailsRef.current;
     }
@@ -255,7 +287,7 @@ export default function MealChatScreen() {
     finalDetailsRef.current = {
       proposal: lastProposalRef.current,
       content: data.message,
-      ingredients: data.ingredients ?? [],
+      dishes: data.dishes ?? [],
     };
     return finalDetailsRef.current;
   }
@@ -305,14 +337,14 @@ export default function MealChatScreen() {
 
       if (next === 'final') {
         setMascotPose('thinking');
-        const { content, ingredients } = await getFinalDetails(newAnswers);
+        const { content, dishes } = await getFinalDetails(newAnswers);
         const bookContent = extractBookContent(content);
         if (newAnswers.entryPoint) {
           saveDecidedMenu({
             entryPoint: newAnswers.entryPoint,
             proposalText: lastProposalRef.current,
             recipeText: content,
-            ingredients,
+            dishes,
           }).catch((error) => console.error('決定済み献立の保存に失敗:', error));
         }
         setMascotPose('idea');
@@ -358,6 +390,8 @@ export default function MealChatScreen() {
     setAllergyValue('');
     setShowMoodTray(false);
     setShowRevisionInput(false);
+    setPinnedDish(null);
+    setShowRecipePicker(false);
 
     if (previous.step === 'ingredients' && previous.answers.entryPoint === 'fridge') {
       showFridgeScanMessage();
@@ -389,23 +423,46 @@ export default function MealChatScreen() {
     advance({ ...answers, ingredients: ingredientsText }, ingredientsText);
   }
 
-  function handleMoodAllergySubmit() {
+  function handleAllergySubmit() {
+    const checkedProfileList = profileAllergyItems.filter((item) => checkedProfileItems[item]);
+    const allergy = [...checkedProfileList, allergyValue.trim()].filter(Boolean).join('、');
+    advance({ ...answers, allergy }, allergy || '（特になし）');
+    setAllergyValue('');
+  }
+
+  function handleMoodSubmit() {
     const mood = [genreTag, formatTag, tasteTag, temperatureTag, freeMoodValue.trim()]
       .filter((part): part is string => Boolean(part))
       .join('・');
-    const checkedProfileList = profileAllergyItems.filter((item) => checkedProfileItems[item]);
-    const allergy = [...checkedProfileList, allergyValue.trim()].filter(Boolean).join('、');
     const parts: string[] = [];
     if (mood) parts.push(`気分: ${mood}`);
-    if (allergy) parts.push(`アレルギー・苦手: ${allergy}`);
-    advance({ ...answers, mood, allergy }, parts.length ? parts.join(' / ') : '（特になし）');
+    if (pinnedDish) parts.push(`使うレシピ: ${pinnedDish.course}・${pinnedDish.title}`);
+    advance(
+      { ...answers, mood, pinnedRecipe: pinnedDish ?? undefined },
+      parts.length ? parts.join(' / ') : '（特になし）',
+    );
     setGenreTag(null);
     setFormatTag(null);
     setTasteTag(null);
     setTemperatureTag(null);
     setFreeMoodValue('');
-    setAllergyValue('');
     setShowMoodTray(false);
+    setPinnedDish(null);
+    setShowRecipePicker(false);
+  }
+
+  function handleOpenRecipePicker() {
+    listRecipes().then(setSavedRecipesForPicker);
+    setShowRecipePicker(true);
+  }
+
+  function handlePickRecipe(recipe: SavedRecipe) {
+    setPinnedDish({
+      course: recipe.course ?? '主菜',
+      title: recipe.title,
+      ...parseBookContent(recipe.bookContent),
+    });
+    setShowRecipePicker(false);
   }
 
   function handleRevisionSubmit() {
@@ -436,6 +493,8 @@ export default function MealChatScreen() {
     setShowRevisionInput(false);
     setShowMoodTray(false);
     setShowingRecipeDetail(false);
+    setPinnedDish(null);
+    setShowRecipePicker(false);
     lastProposalRef.current = '';
     finalDetailsRef.current = null;
   }
@@ -561,7 +620,52 @@ export default function MealChatScreen() {
               />
             )}
 
-            {step === 'moodAndAllergy' && (
+            {step === 'allergy' && (
+              <View style={styles.dualTextContainer}>
+                <View style={styles.allergyChipRow}>
+                  {profileAllergyItems.map((item) => {
+                    const checked = checkedProfileItems[item];
+                    return (
+                      <Pressable key={item} onPress={() => toggleProfileAllergyItem(item)}>
+                        {({ pressed }) => (
+                          <ThemedView
+                            type={checked ? 'accent' : 'backgroundElement'}
+                            style={[styles.allergyChip, pressed && styles.pressed]}>
+                            <ThemedText type="small" themeColor={checked ? 'background' : 'textSecondary'}>
+                              {item}
+                            </ThemedText>
+                          </ThemedView>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                  <Pressable onPress={() => setShowAllergyPicker(true)}>
+                    {({ pressed }) => (
+                      <ThemedView type="backgroundElement" style={[styles.allergyChip, pressed && styles.pressed]}>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          ＋ 避けたいものを追加
+                        </ThemedText>
+                      </ThemedView>
+                    )}
+                  </Pressable>
+                </View>
+                <ThemedView type="backgroundElement" style={styles.textInputWrapper}>
+                  <TextInput
+                    value={allergyValue}
+                    onChangeText={setAllergyValue}
+                    placeholder="他にあれば（今回だけの例外など）"
+                    placeholderTextColor={theme.textSecondary}
+                    style={[styles.textInput, styles.textInputCentered, { color: theme.text }]}
+                  />
+                </ThemedView>
+                <View style={styles.moodButtonRow}>
+                  <BackButton onPress={handleBack} />
+                  <SendButton onPress={handleAllergySubmit} />
+                </View>
+              </View>
+            )}
+
+            {step === 'mood' && (
               <View style={styles.dualTextContainer}>
                 {!showMoodTray && (
                   <>
@@ -584,47 +688,35 @@ export default function MealChatScreen() {
                         </ThemedView>
                       )}
                     </Pressable>
-                    <View style={styles.allergyChipRow}>
-                      {profileAllergyItems.map((item) => {
-                        const checked = checkedProfileItems[item];
-                        return (
-                          <Pressable key={item} onPress={() => toggleProfileAllergyItem(item)}>
-                            {({ pressed }) => (
-                              <ThemedView
-                                type={checked ? 'accent' : 'backgroundElement'}
-                                style={[styles.allergyChip, pressed && styles.pressed]}>
-                                <ThemedText type="small" themeColor={checked ? 'background' : 'textSecondary'}>
-                                  {item}
-                                </ThemedText>
-                              </ThemedView>
-                            )}
-                          </Pressable>
-                        );
-                      })}
-                      <Pressable onPress={() => setShowAllergyPicker(true)}>
+                    <Pressable onPress={handleOpenRecipePicker}>
+                      {({ pressed }) => (
+                        <ThemedView
+                          type="backgroundElement"
+                          style={[styles.textInputWrapper, pressed && styles.pressed]}>
+                          <ThemedText
+                            style={[styles.textInput, styles.textInputCentered]}
+                            themeColor={pinnedDish ? 'text' : 'textSecondary'}>
+                            {pinnedDish
+                              ? `使う：${pinnedDish.course}・${pinnedDish.title}`
+                              : '保存したレシピを使う（任意）'}
+                          </ThemedText>
+                        </ThemedView>
+                      )}
+                    </Pressable>
+                    {pinnedDish && (
+                      <Pressable onPress={() => setPinnedDish(null)} style={styles.choiceBackRow}>
                         {({ pressed }) => (
-                          <ThemedView type="backgroundElement" style={[styles.allergyChip, pressed && styles.pressed]}>
-                            <ThemedText type="small" themeColor="textSecondary">
-                              ＋ 避けたいものを追加
-                            </ThemedText>
-                          </ThemedView>
+                          <ThemedText type="link" themeColor="accent" style={pressed && styles.pressed}>
+                            使うのをやめる
+                          </ThemedText>
                         )}
                       </Pressable>
-                    </View>
-                    <ThemedView type="backgroundElement" style={styles.textInputWrapper}>
-                      <TextInput
-                        value={allergyValue}
-                        onChangeText={setAllergyValue}
-                        placeholder="他にあれば（今回だけの例外など）"
-                        placeholderTextColor={theme.textSecondary}
-                        style={[styles.textInput, styles.textInputCentered, { color: theme.text }]}
-                      />
-                    </ThemedView>
+                    )}
                   </>
                 )}
                 <View style={styles.moodButtonRow}>
                   {!showMoodTray && <BackButton onPress={handleBack} />}
-                  <SendButton onPress={showMoodTray ? () => setShowMoodTray(false) : handleMoodAllergySubmit} />
+                  <SendButton onPress={showMoodTray ? () => setShowMoodTray(false) : handleMoodSubmit} />
                 </View>
               </View>
             )}
@@ -679,10 +771,10 @@ export default function MealChatScreen() {
         </SafeAreaView>
       </KeyboardAvoidingView>
 
-      {step === 'moodAndAllergy' && showMoodTray && (
+      {step === 'mood' && showMoodTray && (
         <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowMoodTray(false)} />
       )}
-      {step === 'moodAndAllergy' && (
+      {step === 'mood' && (
         <MoodTray
           visible={showMoodTray}
           genreOptions={GENRE_TAG_OPTIONS}
@@ -702,10 +794,54 @@ export default function MealChatScreen() {
         />
       )}
 
-      {step === 'moodAndAllergy' && showAllergyPicker && (
+      {step === 'mood' && showRecipePicker && (
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowRecipePicker(false)} />
+      )}
+      {step === 'mood' && showRecipePicker && (
+        <View style={styles.allergyPickerOverlay} pointerEvents="box-none">
+          <ThemedView type="background" style={styles.allergyPickerPanel}>
+            <View style={styles.allergyPickerHeader}>
+              <ThemedText type="smallBold">保存したレシピから選ぶ</ThemedText>
+              <Pressable onPress={() => setShowRecipePicker(false)} hitSlop={8}>
+                {({ pressed }) => (
+                  <ThemedText type="link" themeColor="accent" style={pressed && styles.pressed}>
+                    閉じる
+                  </ThemedText>
+                )}
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={styles.allergyPickerContent}>
+              {savedRecipesForPicker.length === 0 ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  まだ保存したレシピがないよ。
+                </ThemedText>
+              ) : (
+                savedRecipesForPicker.map((recipe) => (
+                  <Pressable key={recipe.id} onPress={() => handlePickRecipe(recipe)}>
+                    {({ pressed }) => (
+                      <ThemedView
+                        type="backgroundElement"
+                        style={[styles.recipePickerRow, pressed && styles.pressed]}>
+                        <ThemedText type="smallBold">{recipe.title}</ThemedText>
+                        {recipe.course && (
+                          <ThemedText type="small" themeColor="textSecondary">
+                            {recipe.course}
+                          </ThemedText>
+                        )}
+                      </ThemedView>
+                    )}
+                  </Pressable>
+                ))
+              )}
+            </ScrollView>
+          </ThemedView>
+        </View>
+      )}
+
+      {step === 'allergy' && showAllergyPicker && (
         <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowAllergyPicker(false)} />
       )}
-      {step === 'moodAndAllergy' && showAllergyPicker && (
+      {step === 'allergy' && showAllergyPicker && (
         <View style={styles.allergyPickerOverlay} pointerEvents="box-none">
           <ThemedView type="background" style={styles.allergyPickerPanel}>
             <View style={styles.allergyPickerHeader}>
@@ -901,6 +1037,12 @@ const styles = StyleSheet.create({
   allergyPickerContent: {
     gap: Spacing.four,
     paddingBottom: Spacing.three,
+  },
+  recipePickerRow: {
+    padding: Spacing.three,
+    borderRadius: Spacing.three,
+    gap: Spacing.half,
+    marginBottom: Spacing.two,
   },
   textInputWrapperStacked: {
     alignSelf: 'stretch',

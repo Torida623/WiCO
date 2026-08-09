@@ -58,9 +58,10 @@ function splitIntoPages(content: string): string[] {
 export type RecipeBookProps = {
   content: string;
   onRestart: () => void;
+  restartLabel?: string;
 };
 
-export function RecipeBook({ content, onRestart }: RecipeBookProps) {
+export function RecipeBook({ content, onRestart, restartLabel = 'もう一度考える' }: RecipeBookProps) {
   const pages = splitIntoPages(content);
 
   const [opened, setOpened] = useState(false);
@@ -228,7 +229,7 @@ export function RecipeBook({ content, onRestart }: RecipeBookProps) {
             {({ pressed }) => (
               <ThemedView type="accent" style={[styles.restartButton, pressed && styles.pressed]}>
                 <ThemedText type="smallBold" themeColor="background">
-                  もう一度考える
+                  {restartLabel}
                 </ThemedText>
               </ThemedView>
             )}

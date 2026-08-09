@@ -127,7 +127,7 @@ export default function BudgetScreen() {
       <Image source={NOTEBOOK_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.back()} />
+        <ScreenHeader />
 
         <ScrollView contentContainerStyle={styles.content} scrollEnabled={false}>
           <View style={styles.summaryCardWrapper}>

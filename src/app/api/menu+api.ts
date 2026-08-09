@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 
-import { Answers, ENTRY_POINT_OPTIONS } from '@/constants/meal-flow';
+import { Answers, COURSE_OPTIONS, Course, ENTRY_POINT_OPTIONS, PinnedDish } from '@/constants/meal-flow';
 import { JAPANESE_CHAT_MODEL, createJapaneseChatCompletion } from '@/lib/openai-japanese';
 
 const PROPOSAL_SYSTEM_PROMPT = `あなたは家庭料理の献立を提案するアプリ「WiCO」のマスコット「ペロココ」です。
@@ -12,6 +12,8 @@ const PROPOSAL_SYSTEM_PROMPT = `あなたは家庭料理の献立を提案する
 
 ラーメン・丼・カレー・パスタ・サンドイッチ・チャーハン・鍋物など、1品で主食・主菜・汁物のうち複数の役割を兼ねる料理を提案する場合は、項目名を「主菜」ではなく「メイン」にしてください。焼き魚や生姜焼きのように、はっきり主菜だけの料理の場合は「主菜」のままにしてください。
 副菜・汁物・主食は、実際に追加で提案したい料理がある場合のみ記載してください。追加する品がない項目は行ごと丸々省略してください。「なし」「特になし」のように書いて空欄を埋めることは絶対にしないでください。
+
+ユーザーの文脈に「献立には既に〜を使うことが決まっている」と書かれている場合、その品目の行は必ずそのタイトルをそのまま使ってください（言い換えたり別の料理に変えたりしないでください）。別料理の候補にも出さないでください。他の品目（まだ決まっていないもの）だけ、通常通り自然に考えて追加してください。
 
 以下のフォーマットのみで応答してください。前置きや説明文、マークダウンの太字(**)などの記法は使わないでください。
 
@@ -38,6 +40,8 @@ const REVISION_SYSTEM_PROMPT = `あなたは家庭料理の献立を提案する
 変更後の献立も、実際に家庭で作られている自然な組み合わせにしてください。食材や調味料の組み合わせが不自然な、いわゆる「謎料理」は絶対に避けてください。
 
 副菜・汁物・主食は、実際に追加で提案したい料理がある場合のみ値を入れてください。「なし」「特になし」のような値は絶対に使わず、追加する品がなければ必ずnullにしてください。
+
+ユーザーの文脈に「献立には既に〜を使うことが決まっている」と書かれている場合、その品目は絶対に変更しないでください（updatedの対象にもしないでください）。
 
 指定されたJSON形式で応答してください。
 ・intro: 変更点を踏まえた導入の一言
@@ -76,6 +80,32 @@ function buildProposalText(intro: string, closing: string, fields: MenuFields): 
   return lines.join('\n');
 }
 
+/** Overrides the pinned dish's slot in the merged proposal fields so a revision can never change it, regardless of what the AI returned for that slot. */
+function applyPinnedOverride(fields: MenuFields, pinned: PinnedDish): MenuFields {
+  switch (pinned.course) {
+    case '主菜':
+      return { ...fields, mainLabel: '主菜', main: pinned.title };
+    case '副菜':
+      return { ...fields, side: pinned.title };
+    case '汁物':
+      return { ...fields, soup: pinned.title };
+    case '主食':
+      return { ...fields, staple: pinned.title };
+  }
+}
+
+/** Defensive safety net for the free-text initial proposal: force the pinned dish's line to its exact title even if the AI slightly reworded it. */
+function enforcePinnedDish(text: string, pinned: PinnedDish): string {
+  const labels = pinned.course === '主菜' ? ['主菜', 'メイン'] : [pinned.course];
+  for (const label of labels) {
+    const pattern = new RegExp(`・${label}：.*`);
+    if (pattern.test(text)) {
+      return text.replace(pattern, `・${pinned.course}：${pinned.title}`);
+    }
+  }
+  return text.replace('🍽️ 献立', `🍽️ 献立\n・${pinned.course}：${pinned.title}`);
+}
+
 const REVISION_RESPONSE_SCHEMA = {
   type: 'object' as const,
   properties: {
@@ -92,37 +122,71 @@ const REVISION_RESPONSE_SCHEMA = {
 };
 
 const FINAL_SYSTEM_PROMPT = `あなたは家庭料理の献立を提案するアプリ「WiCO」のマスコット「ペロココ」です。
-直前に確定した献立について、材料と作り方を教えてください。
+直前に確定した献立について、品目（料理）ごとに材料と作り方を教えてください。
+
+確定した献立の「🍽️ 献立」に挙げられている品目（主菜またはメイン・副菜・汁物・主食のうち、実際に書かれているものだけ）ごとに1エントリを作ってください。品目名は献立に書かれた料理名をそのまま使ってください。「メイン」として挙げられていた品目も、courseは「主菜」にしてください。
+
+ユーザーの文脈に「献立には既に〜を使うことが決まっている」と書かれている場合、その品目についてはdishesにエントリを作らないでください。それ以外の品目だけ生成してください。
 
 ペロココの話し言葉ではなく、実際のレシピ本に書かれているような文体にしてください。「〜だよ」「〜してね」のような話しかける言い方や、「です」「ます」などの敬語は使わず、「〜を切る。」「〜を加えて炒める。」のように動詞の言い切り（辞書形）で簡潔に書いてください。
 
 指定されたJSON形式で応答してください。
-・ingredients: 材料の配列。nameには材料名のみ、amountには指定された人数分の分量（単位を含む）を入れてください。
-・steps: 作り方の配列。1手順につき1つの文字列にしてください。`;
+・dishes: 品目ごとの配列。
+  - course: 「主食」「主菜」「副菜」「汁物」のいずれか
+  - title: 料理名
+  - ingredients: 材料の配列。nameには材料名のみ、amountには指定された人数分の分量（単位を含む）を入れてください。
+  - steps: 作り方の配列。1手順につき1つの文字列にしてください。`;
+
+type FinalDish = {
+  course: Course;
+  title: string;
+  ingredients: { name: string; amount: string }[];
+  steps: string[];
+};
 
 const FINAL_RESPONSE_SCHEMA = {
   type: 'object' as const,
   properties: {
-    ingredients: {
+    dishes: {
       type: 'array' as const,
       items: {
         type: 'object' as const,
-        properties: { name: { type: 'string' }, amount: { type: 'string' } },
-        required: ['name', 'amount'],
+        properties: {
+          course: { type: 'string' as const, enum: ['主食', '主菜', '副菜', '汁物'] },
+          title: { type: 'string' as const },
+          ingredients: {
+            type: 'array' as const,
+            items: {
+              type: 'object' as const,
+              properties: { name: { type: 'string' }, amount: { type: 'string' } },
+              required: ['name', 'amount'],
+              additionalProperties: false,
+            },
+          },
+          steps: { type: 'array' as const, items: { type: 'string' } },
+        },
+        required: ['course', 'title', 'ingredients', 'steps'],
         additionalProperties: false,
       },
     },
-    steps: { type: 'array' as const, items: { type: 'string' } },
   },
-  required: ['ingredients', 'steps'],
+  required: ['dishes'],
   additionalProperties: false,
 };
 
-function buildFinalText(ingredients: { name: string; amount: string }[], steps: string[]): string {
-  const lines = ['献立が決まりました！', '', '【材料】(指定された人数分)'];
-  ingredients.forEach((i) => lines.push(`・${i.name} ${i.amount}`));
-  lines.push('', '【作り方】');
-  steps.forEach((s, idx) => lines.push(`${idx + 1}. ${s}`));
+function sortByCourseOrder(dishes: FinalDish[]): FinalDish[] {
+  const order = COURSE_OPTIONS.map((option) => option.value);
+  return [...dishes].sort((a, b) => order.indexOf(a.course) - order.indexOf(b.course));
+}
+
+function buildFinalText(dishes: FinalDish[]): string {
+  const lines = ['献立が決まりました！'];
+  for (const dish of dishes) {
+    lines.push('', `◆ ${dish.course}：${dish.title}`, '', '【材料】(指定された人数分)');
+    dish.ingredients.forEach((i) => lines.push(`・${i.name} ${i.amount}`));
+    lines.push('', '【作り方】');
+    dish.steps.forEach((s, idx) => lines.push(`${idx + 1}. ${s}`));
+  }
   return lines.join('\n');
 }
 
@@ -150,6 +214,9 @@ function summarizeAnswers(answers: Answers): string {
   }
   if (answers.mood?.trim()) lines.push(`今の気分: ${answers.mood.trim()}`);
   if (answers.allergy?.trim()) lines.push(`アレルギー・苦手な食材: ${answers.allergy.trim()}`);
+  if (answers.pinnedRecipe) {
+    lines.push(`献立には既に「${answers.pinnedRecipe.course}：${answers.pinnedRecipe.title}」を使うことが決まっている（変更しないこと）`);
+  }
   if (answers.ingredients?.trim()) {
     const label = answers.entryPoint === 'fridge' ? '冷蔵庫にある食材（必ずこれらを中心に使うこと）' : '使いたい食材';
     lines.push(`${label}: ${answers.ingredients.trim()}`);
@@ -197,7 +264,7 @@ export async function POST(request: Request) {
         const raw = response.choices[0]?.message.content ?? '{}';
         const parsed = JSON.parse(raw);
         const previousFields = parseMenuFields(previousProposal);
-        const mergedFields: MenuFields = {
+        let mergedFields: MenuFields = {
           mainLabel: previousFields.mainLabel,
           main: parsed.updatedMain?.trim() || previousFields.main,
           side: parsed.updatedSide?.trim() || previousFields.side,
@@ -205,6 +272,7 @@ export async function POST(request: Request) {
           staple: parsed.updatedStaple?.trim() || previousFields.staple,
           alternative: parsed.updatedAlternative?.trim() || previousFields.alternative,
         };
+        if (answers.pinnedRecipe) mergedFields = applyPinnedOverride(mergedFields, answers.pinnedRecipe);
         const text = buildProposalText(parsed.intro, parsed.closing, mergedFields);
         return Response.json({ message: text });
       }
@@ -217,7 +285,8 @@ export async function POST(request: Request) {
           { role: 'user', content: `${summarizeAnswers(answers)}\n\n${buildVarietyHint()}${fridgeHint}` },
         ],
       });
-      const text = response.choices[0]?.message.content ?? '';
+      let text = response.choices[0]?.message.content ?? '';
+      if (answers.pinnedRecipe) text = enforcePinnedDish(text, answers.pinnedRecipe);
       return Response.json({ message: text });
     }
 
@@ -237,10 +306,14 @@ export async function POST(request: Request) {
     });
     const raw = response.choices[0]?.message.content ?? '{}';
     const parsed = JSON.parse(raw);
-    const ingredients: { name: string; amount: string }[] = parsed.ingredients ?? [];
-    const steps: string[] = parsed.steps ?? [];
-    const text = buildFinalText(ingredients, steps);
-    return Response.json({ message: text, ingredients });
+    let dishes: FinalDish[] = parsed.dishes ?? [];
+    if (answers.pinnedRecipe) {
+      const pinned = answers.pinnedRecipe;
+      dishes = [...dishes.filter((dish) => dish.course !== pinned.course), pinned];
+    }
+    const orderedDishes = sortByCourseOrder(dishes);
+    const text = buildFinalText(orderedDishes);
+    return Response.json({ message: text, dishes: orderedDishes });
   } catch (error) {
     console.error(error);
     return Response.json({ message: 'AIとの通信でエラーが発生しました。しばらくしてからもう一度お試しください。' }, { status: 500 });

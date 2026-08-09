@@ -184,7 +184,7 @@ export default function LivingCostsScreen() {
                       }}
                       onEndEditing={() => handleSave(item.id)}
                       keyboardType="number-pad"
-                      placeholder={previous !== undefined ? `前月：${formatYen(previous)}` : '金額'}
+                      placeholder={previous !== undefined ? `先月：${formatYen(previous)}` : '先月未入力'}
                       placeholderTextColor={theme.textSecondary}
                       style={[styles.input, { color: theme.text }]}
                     />

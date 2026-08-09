@@ -12,6 +12,8 @@ import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { MealRecord, MealType, searchMealRecords } from '@/lib/meal-records';
 
+const KITCHEN_BACKGROUND = require('@/assets/images/meal-log/kitchen-bg.jpg');
+
 const MEAL_TYPE_LABELS: Record<MealType, string> = {
   breakfast: '朝ごはん',
   lunch: '昼ごはん',
@@ -65,7 +67,8 @@ export default function MealLogHistoryScreen() {
   useFocusEffect(reload);
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
+      <Image source={KITCHEN_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScreenHeader title="記録を見る" onBack={() => router.back()} />
@@ -120,13 +123,16 @@ export default function MealLogHistoryScreen() {
           )}
         />
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  absoluteFill: {
+    ...StyleSheet.absoluteFillObject,
   },
   safeArea: {
     flex: 1,

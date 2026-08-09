@@ -1,15 +1,22 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { EntryPoint } from '@/constants/meal-flow';
+import { Course, EntryPoint } from '@/constants/meal-flow';
 
 export type DecidedMenuIngredient = { name: string; amount: string };
+
+export type DecidedDish = {
+  course: Course;
+  title: string;
+  ingredients: DecidedMenuIngredient[];
+  steps: string[];
+};
 
 export type DecidedMenu = {
   id: string;
   entryPoint: EntryPoint;
   proposalText: string;
   recipeText: string;
-  ingredients: DecidedMenuIngredient[];
+  dishes: DecidedDish[];
   decidedAt: string;
   expiresAt: string;
 };
@@ -18,7 +25,7 @@ export type NewDecidedMenuInput = {
   entryPoint: EntryPoint;
   proposalText: string;
   recipeText: string;
-  ingredients: DecidedMenuIngredient[];
+  dishes: DecidedDish[];
 };
 
 const STORAGE_KEY = 'wico:decided-menus';
@@ -76,7 +83,7 @@ export async function saveDecidedMenu(input: NewDecidedMenuInput): Promise<Decid
     entryPoint: input.entryPoint,
     proposalText: input.proposalText,
     recipeText: input.recipeText,
-    ingredients: input.ingredients,
+    dishes: input.dishes,
     decidedAt: decidedAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
   };
@@ -100,12 +107,14 @@ export async function listAggregatedIngredients(): Promise<AggregatedIngredient[
   const amountsByName = new Map<string, string[]>();
 
   for (const menu of menus) {
-    for (const { name, amount } of menu.ingredients) {
-      const key = name.trim();
-      if (!key) continue;
-      const amounts = amountsByName.get(key) ?? [];
-      if (amount && !amounts.includes(amount)) amounts.push(amount);
-      amountsByName.set(key, amounts);
+    for (const dish of menu.dishes ?? []) {
+      for (const { name, amount } of dish.ingredients) {
+        const key = name.trim();
+        if (!key) continue;
+        const amounts = amountsByName.get(key) ?? [];
+        if (amount && !amounts.includes(amount)) amounts.push(amount);
+        amountsByName.set(key, amounts);
+      }
     }
   }
 

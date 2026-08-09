@@ -11,6 +11,7 @@ export default function AppTabs() {
       <Tabs.Screen name="food-preferences" options={{ href: null, title: '苦手・アレルギー登録', unmountOnBlur: true }} />
       <Tabs.Screen name="budget" options={{ href: null, title: 'お買い物ノート', unmountOnBlur: true }} />
       <Tabs.Screen name="meal-log" options={{ href: null, title: '料理の思い出', unmountOnBlur: true }} />
+      <Tabs.Screen name="recipe-lab" options={{ href: null, title: 'レシピ研究所', unmountOnBlur: true }} />
     </Tabs>
   );
 }

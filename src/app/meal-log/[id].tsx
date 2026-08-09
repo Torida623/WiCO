@@ -12,6 +12,8 @@ import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { getMealRecord, MealRecord, MealType } from '@/lib/meal-records';
 
+const KITCHEN_BACKGROUND = require('@/assets/images/meal-log/kitchen-bg.jpg');
+
 const FOOD_GROUP_COLORS = {
   energy: '#F0B84B',
   protein: '#E27058',
@@ -49,7 +51,8 @@ export default function MealRecordDetailScreen() {
   }, [id]);
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
+      <Image source={KITCHEN_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScreenHeader title="記録" onBack={() => router.back()} />
@@ -122,13 +125,16 @@ export default function MealRecordDetailScreen() {
           </ScrollView>
         )}
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  absoluteFill: {
+    ...StyleSheet.absoluteFillObject,
   },
   safeArea: {
     flex: 1,

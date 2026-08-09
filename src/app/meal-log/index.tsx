@@ -6,10 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from '@/components/screen-header';
 import { SideMenu } from '@/components/side-menu';
-import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { FoodGroupLevel, searchMealRecords, summarizeNutritionBalance, WeeklyNutritionBalance } from '@/lib/meal-records';
 
+const KITCHEN_BACKGROUND = require('@/assets/images/meal-log/kitchen-bg.jpg');
 const RECORD_BUTTON_IMAGE = require('@/assets/images/meal-log/record-button.png');
 const RECORD_BUTTON_ASPECT_RATIO = 1416 / 792;
 const HISTORY_BUTTON_IMAGE = require('@/assets/images/meal-log/history-button.png');
@@ -159,7 +159,8 @@ export default function MealLogHubScreen() {
   );
 
   return (
-    <ThemedView type="backgroundElement" style={styles.container}>
+    <View style={styles.container}>
+      <Image source={KITCHEN_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScreenHeader />
@@ -179,13 +180,16 @@ export default function MealLogHubScreen() {
           />
         </ScrollView>
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  absoluteFill: {
+    ...StyleSheet.absoluteFillObject,
   },
   safeArea: {
     flex: 1,

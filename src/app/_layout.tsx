@@ -110,6 +110,7 @@ export default function TabLayout() {
             onSelectMealMemories={() => transitionTo('app', '/meal-log' as Href)}
             onSelectShoppingMemo={() => transitionTo('app', '/shopping-memo' as Href)}
             onSelectBudget={() => transitionTo('app', '/budget' as Href)}
+            onSelectRecipeLab={() => transitionTo('app', '/recipe-lab' as Href)}
           />
         )}
         {stage === 'app' && <AppTabs />}

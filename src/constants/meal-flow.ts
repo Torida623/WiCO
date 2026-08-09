@@ -2,15 +2,32 @@ import { ImageSource } from 'expo-image';
 
 export type EntryPoint = 'breakfast' | 'lunch' | 'dinner' | 'aiRecommend' | 'fridge';
 
+export type Course = '主食' | '主菜' | '副菜' | '汁物';
+
+export const COURSE_OPTIONS: { value: Course; label: string }[] = [
+  { value: '主食', label: '主食' },
+  { value: '主菜', label: '主菜' },
+  { value: '副菜', label: '副菜' },
+  { value: '汁物', label: '汁物' },
+];
+
 export type StepId =
   | 'entryPoint'
   | 'people'
   | 'cookingTime'
-  | 'moodAndAllergy'
+  | 'allergy'
+  | 'mood'
   | 'ingredients'
   | 'shopping'
   | 'proposal'
   | 'final';
+
+export type PinnedDish = {
+  course: Course;
+  title: string;
+  ingredients: { name: string; amount: string }[];
+  steps: string[];
+};
 
 export type Answers = {
   entryPoint?: EntryPoint;
@@ -18,6 +35,7 @@ export type Answers = {
   cookingTime?: 'relaxed' | 'quick';
   mood?: string;
   allergy?: string;
+  pinnedRecipe?: PinnedDish;
   ingredients?: string;
   shopping?: 'yes' | 'no';
   revisionRequest?: string;
@@ -90,12 +108,12 @@ export function getNextStep(current: StepId, answers: Answers): StepId {
     case 'entryPoint':
       return 'people';
     case 'people':
-      return answers.entryPoint === 'breakfast' || answers.entryPoint === 'lunch'
-        ? 'moodAndAllergy'
-        : 'cookingTime';
+      return answers.entryPoint === 'breakfast' || answers.entryPoint === 'lunch' ? 'allergy' : 'cookingTime';
     case 'cookingTime':
-      return 'moodAndAllergy';
-    case 'moodAndAllergy':
+      return 'allergy';
+    case 'allergy':
+      return 'mood';
+    case 'mood':
       return 'ingredients';
     case 'ingredients':
       if (answers.ingredients && answers.ingredients.trim().length > 0) return 'proposal';

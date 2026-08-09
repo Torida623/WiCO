@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { RecipeBook } from '@/components/chat/recipe-book';
@@ -9,18 +9,33 @@ import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ENTRY_POINT_OPTIONS } from '@/constants/meal-flow';
-import { MaxContentWidth } from '@/constants/theme';
-import { DecidedMenu, getDecidedMenu } from '@/lib/decided-menus';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { DecidedDish, DecidedMenu, getDecidedMenu } from '@/lib/decided-menus';
+import { saveAiRecipe } from '@/lib/recipes';
 
 function extractBookContent(text: string): string {
   const splitIndex = text.indexOf('【材料】');
   return splitIndex >= 0 ? text.slice(splitIndex) : text;
 }
 
+function extractMainDish(proposalText: string): string {
+  return proposalText.match(/・(?:主菜|メイン)：(.+)/)?.[1]?.trim() ?? '（レシピ）';
+}
+
+function buildDishBookContent(dish: DecidedDish): string {
+  const lines = ['【材料】(指定された人数分)'];
+  dish.ingredients.forEach((i) => lines.push(`・${i.name} ${i.amount}`));
+  lines.push('', '【作り方】');
+  dish.steps.forEach((s, idx) => lines.push(`${idx + 1}. ${s}`));
+  return lines.join('\n');
+}
+
 export default function DecidedMenuDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [menu, setMenu] = useState<DecidedMenu | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [savedToRecipeLab, setSavedToRecipeLab] = useState(false);
+  const [savedDishIndices, setSavedDishIndices] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +49,22 @@ export default function DecidedMenuDetailScreen() {
       cancelled = true;
     };
   }, [id]);
+
+  async function handleSaveToRecipeLab() {
+    if (!menu) return;
+    await saveAiRecipe({
+      title: extractMainDish(menu.proposalText),
+      bookContent: extractBookContent(menu.recipeText),
+    });
+    setSavedToRecipeLab(true);
+  }
+
+  async function handleSaveDish(index: number) {
+    if (!menu || !menu.dishes[index]) return;
+    const dish = menu.dishes[index];
+    await saveAiRecipe({ title: dish.title, bookContent: buildDishBookContent(dish), course: dish.course });
+    setSavedDishIndices((current) => new Set(current).add(index));
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -59,9 +90,39 @@ export default function DecidedMenuDetailScreen() {
         )}
 
         {menu && (
-          <View style={styles.bookArea}>
-            <RecipeBook content={extractBookContent(menu.recipeText)} onRestart={() => router.push('/menu-chat')} />
-          </View>
+          <>
+            <View style={styles.bookArea}>
+              <RecipeBook content={extractBookContent(menu.recipeText)} onRestart={() => router.push('/menu-chat')} />
+            </View>
+            {menu.dishes && menu.dishes.length > 0 ? (
+              <View style={styles.saveList}>
+                {menu.dishes.map((dish, index) => (
+                  <Pressable
+                    key={`${dish.course}-${index}`}
+                    onPress={() => handleSaveDish(index)}
+                    disabled={savedDishIndices.has(index)}
+                    style={styles.saveToLabRow}
+                  >
+                    {({ pressed }) => (
+                      <ThemedText type="link" themeColor="accent" style={pressed && styles.pressed}>
+                        {savedDishIndices.has(index)
+                          ? `${dish.course}：${dish.title}を保存したよ！`
+                          : `${dish.course}：${dish.title}をレシピ研究所に保存する`}
+                      </ThemedText>
+                    )}
+                  </Pressable>
+                ))}
+              </View>
+            ) : (
+              <Pressable onPress={handleSaveToRecipeLab} disabled={savedToRecipeLab} style={styles.saveToLabRow}>
+                {({ pressed }) => (
+                  <ThemedText type="link" themeColor="accent" style={pressed && styles.pressed}>
+                    {savedToRecipeLab ? 'レシピ研究所に保存したよ！' : 'レシピ研究所に保存する'}
+                  </ThemedText>
+                )}
+              </Pressable>
+            )}
+          </>
         )}
       </SafeAreaView>
     </ThemedView>
@@ -85,5 +146,16 @@ const styles = StyleSheet.create({
   },
   bookArea: {
     flex: 1,
+  },
+  saveList: {
+    gap: Spacing.one,
+    paddingVertical: Spacing.two,
+  },
+  saveToLabRow: {
+    alignItems: 'center',
+    paddingVertical: Spacing.one,
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });
