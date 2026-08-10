@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { Href, router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,6 +13,58 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { MealRecord, MealType, searchMealRecords } from '@/lib/meal-records';
 
 const KITCHEN_BACKGROUND = require('@/assets/images/meal-log/kitchen-bg.jpg');
+
+// ひなた作の検索バー。元絵は虫眼鏡アイコン＋「料理名で検索」の文字が両方描き込まれて
+// いるが、文字部分は実際の入力/プレースホルダーと二重表示になるので、naming-form-card
+// と同じ方式(絵に焼き込まれた文字を、枠内の塗り色をサンプリングした不透明パッチで隠し、
+// その上に実際のTextInputを重ねる)で隠している。パッチは絵の枠線のすぐ内側までしか
+// 広げず、枠線自体は覆わない。
+const SEARCH_BAR_IMAGE = require('@/assets/images/meal-log/search-bar.png');
+const SEARCH_BAR_ASPECT_RATIO = 1666 / 237;
+const SEARCH_BAR_FILL_COLOR = 'rgb(253, 245, 230)';
+const SEARCH_BAR_TEXT_PATCH = { left: '14.17%', top: '11.06%', width: '32.41%', height: '80.61%' } as const;
+const SEARCH_BAR_ICON_CLEARANCE = '16%';
+
+// ひなた作の記録カード用フレーム。6種類をrecord.idベースの疑似ランダムで割り当てる
+// (規則正しく順番に並べると柄の周期が目について不自然に見えるため)。6枚とも同じ木枠に
+// コーナーのお菓子アイコンだけが違い、実測サイズはほぼ同じなので1つの比率で扱う。
+const RECORD_FRAME_IMAGES = [
+  require('@/assets/images/meal-log/record-frame-donut.png'),
+  require('@/assets/images/meal-log/record-frame-cookie.png'),
+  require('@/assets/images/meal-log/record-frame-cupcake.png'),
+  require('@/assets/images/meal-log/record-frame-macaron.png'),
+  require('@/assets/images/meal-log/record-frame-daifuku.png'),
+  require('@/assets/images/meal-log/record-frame-taiyaki.png'),
+];
+const RECORD_FRAME_ASPECT_RATIO = 1828 / 540;
+// 枠画像の透明処理された「窓」部分(木枠の内側)を実測してパーセント化した安全領域。
+// ここに写真とテキストを収める。上下の余白は画像そのものを実測bboxでトリミング済み
+// (トリミング前は画像の上下に大きな透明マージンがあり、行間がスカスカに見えていた)。
+const RECORD_FRAME_CONTENT_BOX = { top: '26.48%', bottom: '15.93%', left: '5.53%', right: '4.65%' } as const;
+
+function frameIndexForId(id: string): number {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % RECORD_FRAME_IMAGES.length;
+}
+
+// id単体のハッシュだけだと隣り合う記録が偶然同じ枠になることがあるので、リスト順に
+// 割り当てながら直前と被ったら次の柄にずらす。
+function assignFrameIndexes(records: MealRecord[]): Map<string, number> {
+  const assignments = new Map<string, number>();
+  let previous = -1;
+  for (const record of records) {
+    let index = frameIndexForId(record.id);
+    if (index === previous) {
+      index = (index + 1) % RECORD_FRAME_IMAGES.length;
+    }
+    assignments.set(record.id, index);
+    previous = index;
+  }
+  return assignments;
+}
 
 const MEAL_TYPE_LABELS: Record<MealType, string> = {
   breakfast: '朝ごはん',
@@ -47,7 +99,9 @@ export default function MealLogHistoryScreen() {
   const [records, setRecords] = useState<MealRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [period, setPeriod] = useState<string | null>('all');
+  const frameAssignments = useMemo(() => assignFrameIndexes(records), [records]);
 
   const reload = useCallback(() => {
     let cancelled = false;
@@ -71,15 +125,22 @@ export default function MealLogHistoryScreen() {
       <Image source={KITCHEN_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="記録を見る" onBack={() => router.back()} />
+        <ScreenHeader onBack={() => router.back()} />
 
         <View style={styles.filters}>
-          <TextInput
-            value={keyword}
-            onChangeText={setKeyword}
-            placeholder="料理名やメモで検索"
-            style={styles.searchInput}
-          />
+          <View style={styles.searchBar}>
+            <Image source={SEARCH_BAR_IMAGE} style={styles.absoluteFill} contentFit="fill" />
+            {(isSearchFocused || keyword.length > 0) && (
+              <View style={[styles.searchBarTextPatch, SEARCH_BAR_TEXT_PATCH]} />
+            )}
+            <TextInput
+              value={keyword}
+              onChangeText={setKeyword}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
+              style={styles.searchInput}
+            />
+          </View>
           <TagChips options={PERIOD_OPTIONS} selected={period} onSelect={setPeriod} />
         </View>
 
@@ -98,26 +159,37 @@ export default function MealLogHistoryScreen() {
           keyExtractor={(record) => record.id}
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
-            <Pressable onPress={() => router.push(`/meal-log/${item.id}` as Href)}>
+            <Pressable
+              onPress={() => router.push(`/meal-log/${item.id}` as Href)}
+              style={[styles.frameCard, { aspectRatio: RECORD_FRAME_ASPECT_RATIO }]}
+            >
               {({ pressed }) => (
-                <ThemedView type="backgroundElement" style={[styles.row, pressed && styles.pressed]}>
-                  <Image source={{ uri: item.photoUri }} style={styles.thumbnail} contentFit="cover" />
-                  <View style={styles.rowText}>
-                    <View style={styles.rowHeader}>
-                      <ThemedText type="small" themeColor="textSecondary">
-                        {formatEatenAt(item.eatenAt)}
-                      </ThemedText>
-                      {item.mealType && (
+                <View style={[styles.frameInner, pressed && styles.pressed]}>
+                  <ThemedView type="backgroundElement" style={[styles.contentBox, RECORD_FRAME_CONTENT_BOX]} />
+                  <View style={[styles.contentBox, styles.row, RECORD_FRAME_CONTENT_BOX]}>
+                    <Image source={{ uri: item.photoUri }} style={styles.thumbnail} contentFit="cover" />
+                    <View style={styles.rowText}>
+                      <View style={styles.rowHeader}>
                         <ThemedText type="small" themeColor="textSecondary">
-                          {MEAL_TYPE_LABELS[item.mealType]}
+                          {formatEatenAt(item.eatenAt)}
                         </ThemedText>
-                      )}
+                        {item.mealType && (
+                          <ThemedText type="small" themeColor="textSecondary">
+                            {MEAL_TYPE_LABELS[item.mealType]}
+                          </ThemedText>
+                        )}
+                      </View>
+                      <ThemedText type="smallBold" numberOfLines={2}>
+                        {item.dishes.length > 0 ? item.dishes.join('、') : '（料理名なし）'}
+                      </ThemedText>
                     </View>
-                    <ThemedText type="smallBold" numberOfLines={2}>
-                      {item.dishes.length > 0 ? item.dishes.join('、') : '（料理名なし）'}
-                    </ThemedText>
                   </View>
-                </ThemedView>
+                  <Image
+                    source={RECORD_FRAME_IMAGES[frameAssignments.get(item.id) ?? 0]}
+                    style={styles.absoluteFill}
+                    contentFit="fill"
+                  />
+                </View>
               )}
             </Pressable>
           )}
@@ -142,13 +214,22 @@ const styles = StyleSheet.create({
   },
   filters: {
     paddingHorizontal: Spacing.three,
+    marginTop: Spacing.three,
     gap: Spacing.two,
   },
+  searchBar: {
+    width: '100%',
+    aspectRatio: SEARCH_BAR_ASPECT_RATIO,
+  },
+  searchBarTextPatch: {
+    position: 'absolute',
+    backgroundColor: SEARCH_BAR_FILL_COLOR,
+  },
   searchInput: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.three,
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    ...StyleSheet.absoluteFillObject,
+    paddingLeft: SEARCH_BAR_ICON_CLEARANCE,
+    paddingRight: Spacing.four,
+    textAlignVertical: 'center',
   },
   emptyState: {
     flex: 1,
@@ -158,19 +239,29 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: Spacing.three,
-    gap: Spacing.two,
+    gap: Spacing.half,
+  },
+  frameCard: {
+    width: '100%',
+  },
+  frameInner: {
+    flex: 1,
+  },
+  contentBox: {
+    position: 'absolute',
+    borderRadius: 8,
   },
   row: {
     flexDirection: 'row',
-    borderRadius: Spacing.three,
-    padding: Spacing.two,
-    gap: Spacing.three,
-    marginBottom: Spacing.two,
+    alignItems: 'center',
+    paddingHorizontal: Spacing.two,
+    gap: Spacing.two,
+    backgroundColor: 'transparent',
   },
   thumbnail: {
-    width: 64,
-    height: 64,
-    borderRadius: Spacing.two,
+    height: '78%',
+    aspectRatio: 1,
+    borderRadius: Spacing.one,
   },
   rowText: {
     flex: 1,

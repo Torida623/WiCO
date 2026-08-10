@@ -14,6 +14,11 @@ export type SavedRecipe = {
   bookContent: string;
   savedAt: string;
   course?: Course;
+  /** Today's-mood tags, same categories as the menu-planning flow (@/constants/meal-flow) — lets a recipe be matched against a mood later. */
+  genreTag?: string | null;
+  formatTag?: string | null;
+  tasteTag?: string | null;
+  temperatureTag?: string | null;
   /** Only set for source: 'public' — the Supabase auth.uid() that posted it, used to gate the delete link to the owner. */
   ownerId?: string;
 };
@@ -25,6 +30,10 @@ export type NewUserRecipeInput = {
   stepsText: string;
   publish: boolean;
   course?: Course;
+  genreTag?: string | null;
+  formatTag?: string | null;
+  tasteTag?: string | null;
+  temperatureTag?: string | null;
 };
 
 export type NewAiRecipeInput = {
@@ -102,6 +111,10 @@ export async function saveUserRecipe(input: NewUserRecipeInput): Promise<SavedRe
     bookContent,
     savedAt: new Date().toISOString(),
     course: input.course,
+    genreTag: input.genreTag,
+    formatTag: input.formatTag,
+    tasteTag: input.tasteTag,
+    temperatureTag: input.temperatureTag,
   };
 
   const recipes = await readAll();
@@ -149,8 +162,15 @@ type PublicRecipeRow = {
   book_content: string;
   photo_url: string | null;
   course: string | null;
+  genre_tag: string | null;
+  format_tag: string | null;
+  taste_tag: string | null;
+  temperature_tag: string | null;
   created_at: string;
 };
+
+const PUBLIC_RECIPE_COLUMNS =
+  'id, owner_id, title, book_content, photo_url, course, genre_tag, format_tag, taste_tag, temperature_tag, created_at';
 
 function fromPublicRow(row: PublicRecipeRow): SavedRecipe {
   return {
@@ -162,6 +182,10 @@ function fromPublicRow(row: PublicRecipeRow): SavedRecipe {
     bookContent: row.book_content,
     savedAt: row.created_at,
     course: (row.course as Course | null) ?? undefined,
+    genreTag: row.genre_tag,
+    formatTag: row.format_tag,
+    tasteTag: row.taste_tag,
+    temperatureTag: row.temperature_tag,
   };
 }
 
@@ -189,6 +213,10 @@ export async function publishRecipe(recipe: SavedRecipe): Promise<void> {
     book_content: recipe.bookContent,
     photo_url: photoUrl,
     course: recipe.course ?? null,
+    genre_tag: recipe.genreTag ?? null,
+    format_tag: recipe.formatTag ?? null,
+    taste_tag: recipe.tasteTag ?? null,
+    temperature_tag: recipe.temperatureTag ?? null,
   });
   if (error) throw error;
 }
@@ -196,7 +224,7 @@ export async function publishRecipe(recipe: SavedRecipe): Promise<void> {
 export async function listPublicRecipes(): Promise<SavedRecipe[]> {
   const { data, error } = await supabase
     .from(PUBLIC_TABLE)
-    .select('id, owner_id, title, book_content, photo_url, course, created_at')
+    .select(PUBLIC_RECIPE_COLUMNS)
     .order('created_at', { ascending: false })
     .limit(PUBLIC_FEED_LIMIT);
   if (error) {
@@ -209,7 +237,7 @@ export async function listPublicRecipes(): Promise<SavedRecipe[]> {
 export async function getPublicRecipe(id: string): Promise<SavedRecipe | undefined> {
   const { data, error } = await supabase
     .from(PUBLIC_TABLE)
-    .select('id, owner_id, title, book_content, photo_url, course, created_at')
+    .select(PUBLIC_RECIPE_COLUMNS)
     .eq('id', id)
     .maybeSingle();
   if (error || !data) return undefined;

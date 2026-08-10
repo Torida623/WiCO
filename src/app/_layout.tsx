@@ -40,6 +40,12 @@ const BUDGET_BGM_VOLUME = 0.4;
 const BUDGET_BGM_FADE_START_MS = 63_000;
 const BUDGET_BGM_FADE_IN_MS = 600;
 
+// 1:28 track
+const RECIPE_LAB_BGM = require('@/assets/audio/recipe-lab-bgm.mp3');
+const RECIPE_LAB_BGM_VOLUME = 0.4;
+const RECIPE_LAB_BGM_FADE_START_MS = 86_300;
+const RECIPE_LAB_BGM_FADE_IN_MS = 600;
+
 type Stage = 'entrance' | 'menu' | 'app';
 
 export default function TabLayout() {
@@ -77,6 +83,13 @@ export default function TabLayout() {
     stage === 'app' && pathname.startsWith('/budget'),
     BUDGET_BGM_FADE_START_MS,
     BUDGET_BGM_FADE_IN_MS,
+  );
+  useLoopingBgm(
+    RECIPE_LAB_BGM,
+    RECIPE_LAB_BGM_VOLUME,
+    stage === 'app' && pathname.startsWith('/recipe-lab'),
+    RECIPE_LAB_BGM_FADE_START_MS,
+    RECIPE_LAB_BGM_FADE_IN_MS,
   );
 
   useEffect(() => {

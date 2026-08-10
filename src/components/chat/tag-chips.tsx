@@ -1,12 +1,18 @@
 import { Pressable, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 export type TagChipOption = {
   value: string;
   label: string;
+};
+
+/** Unselected/selected fill pair for color-coding a category. Omit to use the default accent/backgroundElement look. */
+export type TagChipTint = {
+  light: string;
+  solid: string;
 };
 
 export type TagChipsProps = {
@@ -14,23 +20,28 @@ export type TagChipsProps = {
   selected: string | null;
   onSelect: (value: string | null) => void;
   style?: StyleProp<ViewStyle>;
+  tint?: TagChipTint;
 };
 
-export function TagChips({ options, selected, onSelect, style }: TagChipsProps) {
+export function TagChips({ options, selected, onSelect, style, tint }: TagChipsProps) {
+  const theme = useTheme();
   return (
     <View style={[styles.container, style]}>
       {options.map((option) => {
         const isSelected = option.value === selected;
+        const backgroundColor = tint
+          ? isSelected
+            ? tint.solid
+            : tint.light
+          : theme[isSelected ? 'accent' : 'backgroundElement'];
         return (
           <Pressable key={option.value} onPress={() => onSelect(isSelected ? null : option.value)}>
             {({ pressed }) => (
-              <ThemedView
-                type={isSelected ? 'accent' : 'backgroundElement'}
-                style={[styles.chip, pressed && styles.pressed]}>
+              <View style={[styles.chip, { backgroundColor }, pressed && styles.pressed]}>
                 <ThemedText type="small" themeColor={isSelected ? 'background' : 'text'}>
                   {option.label}
                 </ThemedText>
-              </ThemedView>
+              </View>
             )}
           </Pressable>
         );

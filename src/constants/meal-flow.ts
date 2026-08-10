@@ -5,7 +5,7 @@ export type EntryPoint = 'breakfast' | 'lunch' | 'dinner' | 'aiRecommend' | 'fri
 export type Course = '主食' | '主菜' | '副菜' | '汁物';
 
 export const COURSE_OPTIONS: { value: Course; label: string }[] = [
-  { value: '主食', label: '主食' },
+  { value: '主食', label: 'ごはん・パン・麺' },
   { value: '主菜', label: '主菜' },
   { value: '副菜', label: '副菜' },
   { value: '汁物', label: '汁物' },

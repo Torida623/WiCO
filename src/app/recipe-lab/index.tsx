@@ -1,41 +1,36 @@
-import { Image } from 'expo-image';
+import { Image, ImageSource } from 'expo-image';
 import { Href, router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from '@/components/screen-header';
 import { SideMenu } from '@/components/side-menu';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 const LAB_BACKGROUND = require('@/assets/images/recipe-lab/lab-bg.jpg');
+const POST_BUTTON = require('@/assets/images/recipe-lab/post-button.png');
+const POST_BUTTON_ASPECT_RATIO = 1257 / 460;
+const VIEW_BUTTON = require('@/assets/images/recipe-lab/view-button.png');
+const VIEW_BUTTON_ASPECT_RATIO = 1255 / 444;
 
 function ChoiceButton({
-  type,
-  title,
-  subtitle,
-  titleColor,
+  source,
+  aspectRatio,
   onPress,
 }: {
-  type: 'accent' | 'backgroundElement';
-  title: string;
-  subtitle: string;
-  titleColor?: 'background';
+  source: ImageSource;
+  aspectRatio: number;
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress}>
+    <Pressable onPress={onPress} style={styles.choiceButtonWrap}>
       {({ pressed }) => (
-        <ThemedView type={type} style={[styles.choiceButton, pressed && styles.pressed]}>
-          <ThemedText type="subtitle" themeColor={titleColor}>
-            {title}
-          </ThemedText>
-          <ThemedText type="small" themeColor={titleColor ?? 'textSecondary'}>
-            {subtitle}
-          </ThemedText>
-        </ThemedView>
+        <Image
+          source={source}
+          style={[styles.choiceButton, { aspectRatio }, pressed && styles.pressed]}
+          contentFit="contain"
+        />
       )}
     </Pressable>
   );
@@ -53,16 +48,13 @@ export default function RecipeLabScreen() {
 
         <View style={styles.content}>
           <ChoiceButton
-            type="accent"
-            title="レシピを投稿する"
-            subtitle="投稿するとみんなのレシピに公開されるよ"
-            titleColor="background"
+            source={POST_BUTTON}
+            aspectRatio={POST_BUTTON_ASPECT_RATIO}
             onPress={() => router.push('/recipe-lab/new' as Href)}
           />
           <ChoiceButton
-            type="backgroundElement"
-            title="レシピを見る"
-            subtitle="保存したレシピを振り返るよ"
+            source={VIEW_BUTTON}
+            aspectRatio={VIEW_BUTTON_ASPECT_RATIO}
             onPress={() => router.push('/recipe-lab/list' as Href)}
           />
         </View>
@@ -90,12 +82,11 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     gap: Spacing.three,
   },
+  choiceButtonWrap: {
+    width: '100%',
+  },
   choiceButton: {
     width: '100%',
-    alignItems: 'center',
-    paddingVertical: Spacing.five,
-    borderRadius: Spacing.four,
-    gap: Spacing.one,
   },
   pressed: {
     opacity: 0.7,

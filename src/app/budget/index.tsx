@@ -301,7 +301,11 @@ const styles = StyleSheet.create({
     // spiral-bound rings drawn into the notebook background art.
     paddingLeft: Spacing.five + Spacing.one,
     paddingRight: Spacing.three,
-    paddingVertical: Spacing.three,
+    // Extra top padding (vs. bottom) nudges the whole page down about one
+    // line — this screen's header has no title/back button, so it's
+    // shorter than on other notebook pages and content sat too high.
+    paddingTop: Spacing.five + Spacing.two,
+    paddingBottom: Spacing.three,
     gap: Spacing.five,
   },
   summaryCardWrapper: {

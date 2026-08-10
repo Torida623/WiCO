@@ -117,7 +117,7 @@ export async function searchMealRecords(query: MealRecordSearchQuery): Promise<M
     if (query.to && record.eatenAt > query.to) return false;
     if (query.favoriteOnly && !record.favorite) return false;
     if (keyword) {
-      const haystack = [...record.dishes, record.memo ?? ''].join(' ').toLowerCase();
+      const haystack = record.dishes.join(' ').toLowerCase();
       if (!haystack.includes(keyword)) return false;
     }
     return true;

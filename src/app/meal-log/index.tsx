@@ -57,7 +57,7 @@ const NUTRITION_LEVEL_TEXT_SLOTS = {
 
 const NUTRITION_FOOD_GROUPS = ['energy', 'protein', 'vegetable'] as const;
 
-function WeeklyNutritionCard({ balance }: { balance: WeeklyNutritionBalance }) {
+function WeeklyNutritionCard({ balance }: { balance: WeeklyNutritionBalance | null }) {
   const [cardWidth, setCardWidth] = useState(0);
   const cardHeight = cardWidth / NUTRITION_CARD_ASPECT_RATIO;
 
@@ -68,9 +68,12 @@ function WeeklyNutritionCard({ balance }: { balance: WeeklyNutritionBalance }) {
     >
       <Image source={NUTRITION_CARD_BG} style={StyleSheet.absoluteFill} contentFit="fill" />
 
+      {/* No records yet this week (e.g. right after the Monday reset) — leave
+          the bars at 0 fill and the level labels blank instead of hiding the
+          whole card, so it doesn't look like it vanished. */}
       {NUTRITION_FOOD_GROUPS.map((group) => {
         const track = NUTRITION_BAR_TRACKS[group];
-        const fillFraction = NUTRITION_FILL_FRACTION[balance[group]];
+        const fillFraction = balance ? NUTRITION_FILL_FRACTION[balance[group]] : 0;
         const trackHeightPx = (track.height / 100) * cardHeight;
         return (
           <View
@@ -88,33 +91,36 @@ function WeeklyNutritionCard({ balance }: { balance: WeeklyNutritionBalance }) {
         );
       })}
 
-      {NUTRITION_FOOD_GROUPS.map((group) => {
-        const slot = NUTRITION_LEVEL_TEXT_SLOTS[group];
-        const { source, ratio } = NUTRITION_LEVEL_IMAGES[balance[group]];
-        const slotHeightPx = (slot.height / 100) * cardHeight;
-        return (
-          <Image
-            key={group}
-            source={source}
-            contentFit="contain"
-            style={{
-              position: 'absolute',
-              left: `${slot.left}%`,
-              top: `${slot.top}%`,
-              height: slotHeightPx,
-              aspectRatio: ratio,
-            }}
-          />
-        );
-      })}
+      {balance &&
+        NUTRITION_FOOD_GROUPS.map((group) => {
+          const slot = NUTRITION_LEVEL_TEXT_SLOTS[group];
+          const { source, ratio } = NUTRITION_LEVEL_IMAGES[balance[group]];
+          const slotHeightPx = (slot.height / 100) * cardHeight;
+          return (
+            <Image
+              key={group}
+              source={source}
+              contentFit="contain"
+              style={{
+                position: 'absolute',
+                left: `${slot.left}%`,
+                top: `${slot.top}%`,
+                height: slotHeightPx,
+                aspectRatio: ratio,
+              }}
+            />
+          );
+        })}
     </View>
   );
 }
 
-function sevenDaysAgoIso(): string {
-  const from = new Date();
-  from.setDate(from.getDate() - 7);
-  return from.toISOString();
+/** Midnight of the current calendar week's Monday, in local time. */
+function startOfThisWeekIso(): string {
+  const now = new Date();
+  const daysSinceMonday = (now.getDay() + 6) % 7; // getDay(): 0=Sun..6=Sat
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceMonday);
+  return monday.toISOString();
 }
 
 // The nutrition card's background art is still a plain JPG, so it needs a
@@ -149,7 +155,7 @@ export default function MealLogHubScreen() {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      searchMealRecords({ from: sevenDaysAgoIso() }).then((records) => {
+      searchMealRecords({ from: startOfThisWeekIso() }).then((records) => {
         if (!cancelled) setWeeklyBalance(summarizeNutritionBalance(records));
       });
       return () => {
@@ -166,7 +172,7 @@ export default function MealLogHubScreen() {
         <ScreenHeader />
 
         <ScrollView contentContainerStyle={styles.content}>
-          {weeklyBalance && <WeeklyNutritionCard balance={weeklyBalance} />}
+          <WeeklyNutritionCard balance={weeklyBalance} />
 
           <CardButton
             source={RECORD_BUTTON_IMAGE}
