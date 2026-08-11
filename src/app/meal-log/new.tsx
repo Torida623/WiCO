@@ -24,6 +24,7 @@ import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { fetchWithTimeout, getApiUrl } from '@/lib/api';
+import { refreshKitchenMemory } from '@/lib/kitchen-memory';
 import { importMealPhoto, MealType, NutritionBalance, saveMealRecord, searchMealRecords } from '@/lib/meal-records';
 
 const KITCHEN_BACKGROUND = require('@/assets/images/meal-log/kitchen-bg.jpg');
@@ -294,6 +295,8 @@ export default function NewMealRecordScreen() {
         memo: memo.trim() || undefined,
         nutritionBalance: balance ?? undefined,
       });
+      // Fire-and-forget: only worth re-deriving when this save actually adds new evidence.
+      if (memo.trim()) refreshKitchenMemory().catch((error) => console.error(error));
       setPhase('saved');
     } catch (error) {
       console.error(error);

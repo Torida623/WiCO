@@ -261,9 +261,22 @@ function shuffle<T>(items: T[]): T[] {
   return result;
 }
 
-/** おすすめレシピ tab: a random pick from the public feed. Simplest possible recommendation — no popularity or preference-tag matching yet. */
+/** Shared by every public-feed view that shouldn't show the current device's own posts (those
+ * live under 投稿したレシピ instead) — おすすめレシピ and the search panel both need this, so a
+ * fix to one doesn't silently miss the other. Read-only, so it must not create a new anon session. */
+async function excludeOwnRecipes(recipes: SavedRecipe[]): Promise<SavedRecipe[]> {
+  const ownerId = await getCurrentUserId();
+  return ownerId ? recipes.filter((recipe) => recipe.ownerId !== ownerId) : recipes;
+}
+
+/** おすすめレシピ tab: the public feed minus this device's own posts, shuffled for discovery. */
 export async function listRecommendedRecipes(): Promise<SavedRecipe[]> {
-  return shuffle(await listPublicRecipes());
+  return shuffle(await excludeOwnRecipes(await listPublicRecipes()));
+}
+
+/** 検索パネル向け: 公開フィードから自分の投稿を除いたもの。検索は並び順が毎回変わると使いにくいのでシャッフルしない。 */
+export async function listSearchableRecipes(): Promise<SavedRecipe[]> {
+  return excludeOwnRecipes(await listPublicRecipes());
 }
 
 /** 投稿したレシピ tab: only the public recipes owned by this device's anon session. Read-only, so it must not create a new anon session — a device that has never posted just gets an empty list. */

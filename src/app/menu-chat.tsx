@@ -46,6 +46,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { fetchWithTimeout, getApiUrl } from '@/lib/api';
 import { DecidedDish, saveDecidedMenu } from '@/lib/decided-menus';
 import { listAllergyFavorites, listDislikedIngredients, setAllergyFavorite } from '@/lib/food-preferences';
+import { getKitchenMemory } from '@/lib/kitchen-memory';
+import { summarizeRecentMealsForPrompt } from '@/lib/meal-records';
 import { listRecipes, SavedRecipe } from '@/lib/recipes';
 
 const ROOM_BACKGROUND = require('@/assets/images/perokoko-room-bg.jpg');
@@ -323,9 +325,16 @@ export default function MealChatScreen() {
     try {
       if (next === 'proposal') {
         const isRevision = Boolean(newAnswers.revisionRequest?.trim());
+        const proposalAnswers = isRevision
+          ? newAnswers
+          : {
+              ...newAnswers,
+              mealHistory: await summarizeRecentMealsForPrompt(),
+              kitchenMemory: await getKitchenMemory(),
+            };
         const data = await fetchMenuMessage(
           'proposal',
-          newAnswers,
+          proposalAnswers,
           isRevision ? lastProposalRef.current : undefined,
         );
         lastProposalRef.current = data.message;

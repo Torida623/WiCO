@@ -39,6 +39,10 @@ export type Answers = {
   ingredients?: string;
   shopping?: 'yes' | 'no';
   revisionRequest?: string;
+  /** Recent-meal-history context (recent dishes + food-group balance) injected right before the initial proposal fetch — see summarizeRecentMealsForPrompt(). Not set by any chat step, so it never affects getNextStep(). */
+  mealHistory?: string;
+  /** Household's soft learned tendencies (disliked-seeming ingredients, seasoning preference, etc.) injected right before the initial proposal fetch — see lib/kitchen-memory.ts. Not set by any chat step, so it never affects getNextStep(). */
+  kitchenMemory?: string;
 };
 
 export const ENTRY_POINT_OPTIONS: {

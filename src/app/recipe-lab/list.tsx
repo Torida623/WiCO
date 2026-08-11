@@ -1,17 +1,19 @@
 import { Image } from 'expo-image';
-import { Href, router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { RecipeListRow } from '@/components/recipe-list-row';
+import { RecipeSearchPanel } from '@/components/recipe-search-panel';
 import { ScreenHeader } from '@/components/screen-header';
 import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { buildRecipeTagChips } from '@/lib/recipe-tags';
 import { listMyPublicRecipes, listRecommendedRecipes, listSavedRecipes, SavedRecipe } from '@/lib/recipes';
+import { hasRecipeSearchAccess } from '@/lib/subscription';
 
 const LAB_BACKGROUND = require('@/assets/images/recipe-lab/lab-bg.jpg');
 
@@ -24,7 +26,7 @@ const TAB_LOADERS: Record<Tab, () => Promise<SavedRecipe[]>> = {
 };
 
 const EMPTY_STATE_TEXT: Record<Tab, string> = {
-  recommended: 'まだおすすめできるレシピがないよ。みんなの投稿が増えたらここに出るよ。',
+  recommended: 'まだおすすめできるレシピがないよ。\nレシピが投稿されるのを待っててね！',
   saved: 'まだ保存したレシピがないよ。気に入った献立や、自分のレシピを残してみてね。',
   posted: 'まだレシピを投稿してないよ。',
 };
@@ -55,6 +57,15 @@ export default function RecipeLabListScreen() {
   const [tab, setTab] = useState<Tab>('recommended');
   const [recipes, setRecipes] = useState<SavedRecipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  function handlePressSearch() {
+    if (!hasRecipeSearchAccess()) {
+      Alert.alert('検索は有料会員限定の機能だよ', '有料プランに登録すると使えるようになるよ。');
+      return;
+    }
+    setIsSearchOpen(true);
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -81,16 +92,20 @@ export default function RecipeLabListScreen() {
         <ScreenHeader onBack={() => router.back()} />
 
         <View style={styles.searchRow}>
-          <ThemedView type="backgroundElement" style={styles.searchButton}>
-            <ThemedText type="smallBold" themeColor="textSecondary">
-              🔍 検索する
-            </ThemedText>
-            <View style={[styles.lockBadge, { backgroundColor: theme.backgroundSelected }]}>
-              <ThemedText type="small" themeColor="textSecondary">
-                🔒 有料
-              </ThemedText>
-            </View>
-          </ThemedView>
+          <Pressable onPress={handlePressSearch}>
+            {({ pressed }) => (
+              <ThemedView type="backgroundElement" style={[styles.searchButton, pressed && styles.pressed]}>
+                <ThemedText type="smallBold" themeColor="textSecondary">
+                  🔍 検索する
+                </ThemedText>
+                <View style={[styles.lockBadge, { backgroundColor: theme.backgroundSelected }]}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    🔒 有料
+                  </ThemedText>
+                </View>
+              </ThemedView>
+            )}
+          </Pressable>
         </View>
 
         <View style={styles.tabRow}>
@@ -112,37 +127,13 @@ export default function RecipeLabListScreen() {
             style={styles.list}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => (
-              <Pressable onPress={() => router.push(`/recipe-lab/${item.id}` as Href)}>
-                {({ pressed }) => (
-                  <ThemedView type="backgroundElement" style={[styles.row, pressed && styles.pressed]}>
-                    {item.photoUri ? (
-                      <Image source={{ uri: item.photoUri }} style={styles.thumbnail} contentFit="cover" />
-                    ) : (
-                      <View style={styles.thumbnailPlaceholder} />
-                    )}
-                    <View style={styles.rowText}>
-                      <ThemedText type="smallBold" numberOfLines={2}>
-                        {item.title}
-                      </ThemedText>
-                      <View style={styles.tagWrap}>
-                        {buildRecipeTagChips(item).map((chip) => (
-                          <View
-                            key={chip.key}
-                            style={[styles.tagChip, { backgroundColor: chip.background, borderColor: chip.text }]}>
-                            <ThemedText type="small" style={{ color: chip.text }}>
-                              {chip.label}
-                            </ThemedText>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  </ThemedView>
-                )}
-              </Pressable>
+              <RecipeListRow recipe={item} onPress={() => router.push(`/recipe-lab/${item.id}`)} />
             )}
           />
         )}
       </SafeAreaView>
+
+      <RecipeSearchPanel visible={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </View>
   );
 }
@@ -204,40 +195,6 @@ const styles = StyleSheet.create({
   listContent: {
     padding: Spacing.three,
     gap: Spacing.two,
-  },
-  row: {
-    flexDirection: 'row',
-    borderRadius: Spacing.three,
-    padding: Spacing.two,
-    gap: Spacing.three,
-    marginBottom: Spacing.two,
-  },
-  thumbnail: {
-    width: 64,
-    height: 64,
-    borderRadius: Spacing.two,
-  },
-  thumbnailPlaceholder: {
-    width: 64,
-    height: 64,
-    borderRadius: Spacing.two,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-  },
-  rowText: {
-    flex: 1,
-    justifyContent: 'center',
-    gap: Spacing.one,
-  },
-  tagWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.one,
-  },
-  tagChip: {
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.half,
-    borderRadius: Spacing.four,
-    borderWidth: 1,
   },
   pressed: {
     opacity: 0.7,

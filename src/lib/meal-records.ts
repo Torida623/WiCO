@@ -74,6 +74,66 @@ export function summarizeNutritionBalance(records: MealRecord[]): WeeklyNutritio
   };
 }
 
+const FOOD_GROUP_LEVEL_LABEL: Record<FoodGroupLevel, string> = {
+  low: '不足気味',
+  slightlyLow: 'やや少なめ',
+  adequate: '適量',
+  slightlyHigh: 'やや多め',
+  high: '多め',
+};
+
+const RECENT_MEAL_LOOKBACK_DAYS = 5;
+const RECENT_MEAL_DISH_LIMIT = 8;
+
+/**
+ * Compact recent-history text for the menu-proposal prompt: recent dish names (so the AI can
+ * avoid repeats) plus the current food-group balance (so it can lean toward what's been missing).
+ * Returns '' when there's no history yet, so callers can skip it cleanly.
+ */
+export async function summarizeRecentMealsForPrompt(): Promise<string> {
+  const from = new Date();
+  from.setDate(from.getDate() - RECENT_MEAL_LOOKBACK_DAYS);
+  const records = await searchMealRecords({ from: from.toISOString() });
+  if (records.length === 0) return '';
+
+  const recentDishes = [...new Set(records.flatMap((record) => record.dishes))].slice(0, RECENT_MEAL_DISH_LIMIT);
+  const balance = summarizeNutritionBalance(records);
+
+  const parts: string[] = [];
+  if (recentDishes.length > 0) {
+    parts.push(`直近${RECENT_MEAL_LOOKBACK_DAYS}日間に食べた料理: ${recentDishes.join('、')}`);
+  }
+  if (balance) {
+    parts.push(
+      `直近の栄養バランス: エネルギー系${FOOD_GROUP_LEVEL_LABEL[balance.energy]}・たんぱく質系${FOOD_GROUP_LEVEL_LABEL[balance.protein]}・野菜系${FOOD_GROUP_LEVEL_LABEL[balance.vegetable]}`,
+    );
+  }
+  return parts.join('\n');
+}
+
+export type MemoedMealEvidence = { eatenAt: string; dishes: string[]; memo: string };
+
+const KITCHEN_MEMORY_EVIDENCE_LOOKBACK_DAYS = 90;
+const KITCHEN_MEMORY_EVIDENCE_LIMIT = 30;
+
+/**
+ * Chronological (oldest→newest) window of memoed meals, used as the *only* grounding evidence
+ * when lib/kitchen-memory.ts regenerates the household's kitchen-memory summary — deliberately
+ * raw records, not a prior summary, so each regeneration re-derives its conclusions from what
+ * actually happened rather than trusting its own past inference.
+ */
+export async function listMemoedMealsForKitchenMemory(): Promise<MemoedMealEvidence[]> {
+  const from = new Date();
+  from.setDate(from.getDate() - KITCHEN_MEMORY_EVIDENCE_LOOKBACK_DAYS);
+  const records = await searchMealRecords({ from: from.toISOString() });
+
+  return records
+    .filter((record): record is MealRecord & { memo: string } => Boolean(record.memo?.trim()))
+    .slice(0, KITCHEN_MEMORY_EVIDENCE_LIMIT) // records are newest-first, so this keeps the most recent ones
+    .reverse() // oldest -> newest, so the AI reads it as a timeline
+    .map((record) => ({ eatenAt: record.eatenAt, dishes: record.dishes, memo: record.memo.trim() }));
+}
+
 const STORAGE_KEY = 'wico:meal-records';
 function getPhotoDir(): Directory {
   return new Directory(Paths.document, 'meal-photos');
