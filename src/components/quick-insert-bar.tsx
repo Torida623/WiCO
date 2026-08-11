@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 import {
   InputAccessoryView,
   Keyboard,
@@ -26,7 +26,6 @@ const WORD_SETS: Record<QuickInsertKind, string[]> = {
   seasoning: ['大さじ', '小さじ', '1/2', '1', '2', '3', '4', '少々', 'g', 'ml'],
 };
 
-const ACCESSORY_ID = 'wico-ingredients-quick-insert';
 const DEFAULT_KIND: QuickInsertKind = 'basic';
 
 type ActiveField = {
@@ -49,51 +48,72 @@ function useQuickInsertBarContext() {
 /**
  * Drop-in TextInput replacement for the ingredient-related fields. `kind` picks which word
  * set the quick-insert bar shows while this field is focused (基本の材料/付け合わせ/調味料
- * each want a different set — see WORD_SETS). Also tracks this field's current value/cursor
- * position in a shared ref, so the bar's buttons know where to splice in the tapped word.
- * On blur we deliberately leave the ref pointing at this field — on Android the custom bar
- * isn't a real keyboard accessory, so tapping a button blurs the field a beat before onPress
- * fires, and losing the target here would make the tap silently do nothing.
+ * each want a different set — see WORD_SETS).
+ *
+ * On iOS each field renders its OWN InputAccessoryView with a unique nativeID, instead of all
+ * fields sharing one. RN's InputAccessoryView has a long-standing bug (still open as of RN 0.81,
+ * https://github.com/facebook/react-native/issues/47865) where it only shows for the first
+ * TextInput focused when multiple inputs share the same inputAccessoryViewID — every other field
+ * silently gets no bar. Giving each field a private ID sidesteps it entirely.
+ *
+ * On Android there's no such bug, so all fields keep sharing the single bottom-pinned bar
+ * (rendered by QuickInsertProvider) driven by the shared activeFieldRef/activeKind.
  */
 export function QuickInsertTextInput(props: TextInputProps & { kind: QuickInsertKind }) {
   const { kind, value, onChangeText, onFocus, onBlur, onSelectionChange, ...rest } = props;
   const { activeFieldRef, setActiveKind } = useQuickInsertBarContext();
+  const theme = useTheme();
   const isFocusedRef = useRef(false);
   const selectionRef = useRef({ start: (value ?? '').length, end: (value ?? '').length });
+  const accessoryId = `qi${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
 
-  useEffect(() => {
-    if (isFocusedRef.current && onChangeText) {
-      activeFieldRef.current = { value: value ?? '', onChangeText, selection: selectionRef.current };
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  function handlePressWordLocally(word: string) {
+    if (!onChangeText) return;
+    const currentValue = value ?? '';
+    const { start, end } = selectionRef.current;
+    const from = start ?? currentValue.length;
+    const to = end ?? currentValue.length;
+    const nextValue = currentValue.slice(0, from) + word + currentValue.slice(to);
+    const nextCursor = from + word.length;
+    selectionRef.current = { start: nextCursor, end: nextCursor };
+    onChangeText(nextValue);
+  }
 
   return (
-    <TextInput
-      {...rest}
-      value={value}
-      onChangeText={onChangeText}
-      inputAccessoryViewID={Platform.OS === 'ios' ? ACCESSORY_ID : undefined}
-      onFocus={(e) => {
-        isFocusedRef.current = true;
-        setActiveKind(kind);
-        if (onChangeText) {
-          activeFieldRef.current = { value: value ?? '', onChangeText, selection: selectionRef.current };
-        }
-        onFocus?.(e);
-      }}
-      onBlur={(e) => {
-        isFocusedRef.current = false;
-        onBlur?.(e);
-      }}
-      onSelectionChange={(e: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
-        selectionRef.current = e.nativeEvent.selection;
-        if (isFocusedRef.current && onChangeText) {
-          activeFieldRef.current = { value: value ?? '', onChangeText, selection: e.nativeEvent.selection };
-        }
-        onSelectionChange?.(e);
-      }}
-    />
+    <>
+      <TextInput
+        {...rest}
+        value={value}
+        onChangeText={onChangeText}
+        inputAccessoryViewID={Platform.OS === 'ios' ? accessoryId : undefined}
+        onFocus={(e) => {
+          isFocusedRef.current = true;
+          setActiveKind(kind);
+          if (onChangeText) {
+            activeFieldRef.current = { value: value ?? '', onChangeText, selection: selectionRef.current };
+          }
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          isFocusedRef.current = false;
+          onBlur?.(e);
+        }}
+        onSelectionChange={(e: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
+          selectionRef.current = e.nativeEvent.selection;
+          if (isFocusedRef.current && onChangeText) {
+            activeFieldRef.current = { value: value ?? '', onChangeText, selection: e.nativeEvent.selection };
+          }
+          onSelectionChange?.(e);
+        }}
+      />
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID={accessoryId}>
+          <View style={[styles.iosBar, { backgroundColor: theme.background }]}>
+            <QuickInsertButtons words={WORD_SETS[kind]} onPressWord={handlePressWordLocally} />
+          </View>
+        </InputAccessoryView>
+      )}
+    </>
   );
 }
 
@@ -125,9 +145,10 @@ function QuickInsertButtons({ words, onPressWord }: { words: string[]; onPressWo
   );
 }
 
-/** Wraps the ingredient section of the form. Renders the iOS keyboard-accessory bar and
- * (while the keyboard is open) the Android equivalent bar pinned above it. Which word set
- * shows is driven by whichever QuickInsertTextInput is currently focused (its `kind` prop). */
+/** Wraps the ingredient section of the form. On iOS each QuickInsertTextInput renders its own
+ * keyboard-accessory bar (see the comment on that component for why). On Android, which has no
+ * real keyboard-accessory API, this instead renders one shared bar pinned above the keyboard,
+ * whose word set follows whichever QuickInsertTextInput is currently focused (its `kind` prop). */
 export function QuickInsertProvider({ children }: { children: React.ReactNode }) {
   const theme = useTheme();
   const activeFieldRef = useRef<ActiveField | null>(null);
@@ -152,13 +173,6 @@ export function QuickInsertProvider({ children }: { children: React.ReactNode })
   return (
     <QuickInsertBarContext.Provider value={{ activeFieldRef, setActiveKind }}>
       {children}
-      {Platform.OS === 'ios' && (
-        <InputAccessoryView nativeID={ACCESSORY_ID}>
-          <View style={[styles.iosBar, { backgroundColor: theme.background }]}>
-            <QuickInsertButtons words={words} onPressWord={handlePressWord} />
-          </View>
-        </InputAccessoryView>
-      )}
       {Platform.OS === 'android' && androidKeyboardHeight > 0 && (
         <View style={[styles.androidBar, { bottom: androidKeyboardHeight, backgroundColor: theme.background }]}>
           <QuickInsertButtons words={words} onPressWord={handlePressWord} />
