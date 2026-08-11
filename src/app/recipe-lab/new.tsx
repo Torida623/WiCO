@@ -177,6 +177,13 @@ export default function NewRecipeScreen() {
     Alert.alert('', 'タグを設定すると、タグ検索や献立の提案に使われます。\n同じ色のタグは1つまで選べます。');
   }
 
+  function handleShowFormatInfo() {
+    Alert.alert(
+      '',
+      'レシピ名と材料をもとに、ペロココが作り方の下書きをするよ。\n途中まで書いた作り方があれば、それを参考にするよ。',
+    );
+  }
+
   function addSeasoningGroup() {
     setSeasoningGroups((current) => [
       ...current,
@@ -627,6 +634,31 @@ export default function NewRecipeScreen() {
             <View style={[styles.formCard, { backgroundColor: theme.background }]}>
               <View style={styles.section}>
                 <ThemedText type="smallBold" style={styles.heading}>作り方</ThemedText>
+
+                <View style={styles.formatButtonRow}>
+                  <Pressable onPress={handleFormatWithAi} disabled={isFormatting}>
+                    {({ pressed }) => (
+                      <ThemedView
+                        type="aiAccent"
+                        style={[styles.formatButton, (pressed || isFormatting) && styles.pressed]}>
+                        <ThemedText type="smallBold" themeColor="background">
+                          {isFormatting ? '下書き中…' : 'ペロココと下書きする'}
+                        </ThemedText>
+                      </ThemedView>
+                    )}
+                  </Pressable>
+                  <Pressable onPress={handleShowFormatInfo} hitSlop={8}>
+                    {({ pressed }) => (
+                      <View
+                        style={[styles.infoButton, { borderColor: theme.textSecondary }, pressed && styles.pressed]}>
+                        <ThemedText themeColor="textSecondary" style={styles.infoButtonText}>
+                          ?
+                        </ThemedText>
+                      </View>
+                    )}
+                  </Pressable>
+                </View>
+
                 <View style={styles.seasoningItemsWrap}>
                   {steps.map((step, index) => (
                     <View key={index} style={styles.stepRow}>
@@ -673,16 +705,6 @@ export default function NewRecipeScreen() {
                   </Pressable>
                 </View>
               </View>
-
-              <Pressable onPress={handleFormatWithAi} disabled={isFormatting}>
-                {({ pressed }) => (
-                  <ThemedView
-                    type="backgroundElement"
-                    style={[styles.formatButton, (pressed || isFormatting) && styles.pressed]}>
-                    <ThemedText type="smallBold">{isFormatting ? '整えてるよ…' : 'AIにきれいに書いてもらう'}</ThemedText>
-                  </ThemedView>
-                )}
-              </Pressable>
 
               <View style={styles.publishRow}>
                 <View style={styles.publishTextColumn}>
@@ -859,7 +881,14 @@ const styles = StyleSheet.create({
   stepInput: {
     flex: 1,
   },
+  formatButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
+  },
   formatButton: {
+    paddingHorizontal: Spacing.five,
     paddingVertical: Spacing.two,
     borderRadius: Spacing.three,
     alignItems: 'center',
