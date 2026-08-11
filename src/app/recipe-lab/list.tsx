@@ -72,7 +72,7 @@ export default function RecipeLabListScreen() {
       <View style={[styles.absoluteFill, { backgroundColor: theme.background, opacity: 0.3 }]} />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="レシピを見る" onBack={() => router.back()} />
+        <ScreenHeader onBack={() => router.back()} />
 
         <View style={styles.tabRow}>
           <TabButton label="自分のレシピ" active={tab === 'mine'} onPress={() => setTab('mine')} />

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { TagChips, TagChipOption } from '@/components/chat/tag-chips';
 import { ScreenHeader } from '@/components/screen-header';
 import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
@@ -73,14 +72,47 @@ const MEAL_TYPE_LABELS: Record<MealType, string> = {
   snack: 'おやつ',
 };
 
-const PERIOD_OPTIONS: TagChipOption[] = [
-  { value: '1w', label: '1週間' },
-  { value: '1m', label: '1ヶ月' },
-  { value: '2m', label: '2ヶ月' },
-  { value: 'all', label: 'すべて' },
-];
+// ひなた作の期間フィルターボタン。未選択(クリーム)/選択中(オレンジ)で丸ごと絵が違うため、
+// record-frameと同様に状態ごとの画像をソース切り替えする方式。ボタンごとに実測アスペクト比が
+// 微妙に違うので、未選択画像の比率を基準に固定枠を作り、選択中画像はcontain指定でその枠に収める
+// (枠を固定することでトグル時のガタつきを防ぐ)。
+const PERIOD_PILL_IMAGES = {
+  '1w': { off: require('@/assets/images/meal-log/period-pill-1w-off.png'), on: require('@/assets/images/meal-log/period-pill-1w-on.png'), aspectRatio: 308 / 158 },
+  '1m': { off: require('@/assets/images/meal-log/period-pill-1m-off.png'), on: require('@/assets/images/meal-log/period-pill-1m-on.png'), aspectRatio: 300 / 158 },
+  '2m': { off: require('@/assets/images/meal-log/period-pill-2m-off.png'), on: require('@/assets/images/meal-log/period-pill-2m-on.png'), aspectRatio: 301 / 158 },
+  all: { off: require('@/assets/images/meal-log/period-pill-all-off.png'), on: require('@/assets/images/meal-log/period-pill-all-on.png'), aspectRatio: 304 / 159 },
+};
+
+const PERIOD_OPTIONS = ['1w', '1m', '2m', 'all'] as const;
 
 const PERIOD_DAYS: Record<string, number> = { '1w': 7, '1m': 30, '2m': 60 };
+
+function PeriodFilterChips({
+  selected,
+  onSelect,
+}: {
+  selected: string | null;
+  onSelect: (value: string | null) => void;
+}) {
+  return (
+    <View style={styles.periodRow}>
+      {PERIOD_OPTIONS.map((value) => {
+        const isSelected = value === selected;
+        const { off, on, aspectRatio } = PERIOD_PILL_IMAGES[value];
+        return (
+          <Pressable
+            key={value}
+            onPress={() => onSelect(isSelected ? null : value)}
+            style={({ pressed }) => [styles.periodPill, { aspectRatio }, pressed && styles.pressed]}
+          >
+            <Image source={off} style={styles.absoluteFill} contentFit="contain" />
+            {isSelected && <Image source={on} style={styles.absoluteFill} contentFit="contain" />}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 function periodToFromDate(period: string | null): string | undefined {
   const days = period ? PERIOD_DAYS[period] : undefined;
@@ -141,7 +173,7 @@ export default function MealLogHistoryScreen() {
               style={styles.searchInput}
             />
           </View>
-          <TagChips options={PERIOD_OPTIONS} selected={period} onSelect={setPeriod} />
+          <PeriodFilterChips selected={period} onSelect={setPeriod} />
         </View>
 
         {!isLoading && records.length === 0 && (
@@ -230,6 +262,15 @@ const styles = StyleSheet.create({
     paddingLeft: SEARCH_BAR_ICON_CLEARANCE,
     paddingRight: Spacing.four,
     textAlignVertical: 'center',
+  },
+  periodRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: Spacing.two,
+  },
+  periodPill: {
+    height: 40,
   },
   emptyState: {
     flex: 1,

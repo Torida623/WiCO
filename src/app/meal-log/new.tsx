@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { TagChips, TagChipOption } from '@/components/chat/tag-chips';
 import { NutritionMeter } from '@/components/nutrition-meter';
 import { ScreenHeader } from '@/components/screen-header';
 import { SideMenu } from '@/components/side-menu';
@@ -33,8 +32,8 @@ const SPEECH_BUBBLE_IMAGE = require('@/assets/images/meal-log/speech-bubble-clou
 const SPEECH_BUBBLE_ASPECT_RATIO = 1398 / 1125;
 
 // ひなた作の「記録する」フォームカード素材。見出し文言・区切り線・プレースホル
-// ダー文字は絵の中に焼き込まれていて、コード側は空欄ゾーンにTagChips/TextInput
-// を重ねるだけ。左右の余白は写真プレビューと横幅を揃えるため実際の絵の輪郭ぎり
+// ダー文字は絵の中に焼き込まれていて、コード側は空欄ゾーンに朝/昼/夜/おやつの
+// 画像ボタンとTextInputを重ねるだけ。左右の余白は写真プレビューと横幅を揃えるため実際の絵の輪郭ぎり
 // ぎりまでトリム済み(830x1135)。座標はそのトリム後の画像上の実測値をパーセン
 // トに変換したもの。
 const NAMING_FORM_CARD_IMAGE = require('@/assets/images/meal-log/naming-form-card.png');
@@ -79,12 +78,61 @@ const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
   preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
 };
 
-const MEAL_TYPE_OPTIONS: TagChipOption[] = [
-  { value: 'breakfast', label: '朝' },
-  { value: 'lunch', label: '昼' },
-  { value: 'dinner', label: '夜' },
-  { value: 'snack', label: 'おやつ' },
-];
+// ひなた作の食事タイプボタン。history.tsxの期間フィルターと同様、未選択(クリーム)/
+// 選択中(オレンジ)で丸ごと絵が違うので状態ごとに画像をソース切り替えする。ボタンごとに
+// 実測アスペクト比が微妙に違うので、未選択画像の比率を基準に固定枠を作り、選択中画像は
+// contain指定でその枠に収める(枠を固定してトグル時のガタつきを防ぐ)。
+const MEAL_TYPE_PILL_IMAGES = {
+  breakfast: {
+    off: require('@/assets/images/meal-log/meal-type-pill-breakfast-off.png'),
+    on: require('@/assets/images/meal-log/meal-type-pill-breakfast-on.png'),
+    aspectRatio: 336 / 226,
+  },
+  lunch: {
+    off: require('@/assets/images/meal-log/meal-type-pill-lunch-off.png'),
+    on: require('@/assets/images/meal-log/meal-type-pill-lunch-on.png'),
+    aspectRatio: 332 / 229,
+  },
+  dinner: {
+    off: require('@/assets/images/meal-log/meal-type-pill-dinner-off.png'),
+    on: require('@/assets/images/meal-log/meal-type-pill-dinner-on.png'),
+    aspectRatio: 335 / 229,
+  },
+  snack: {
+    off: require('@/assets/images/meal-log/meal-type-pill-snack-off.png'),
+    on: require('@/assets/images/meal-log/meal-type-pill-snack-on.png'),
+    aspectRatio: 427 / 229,
+  },
+} as const;
+
+const MEAL_TYPE_OPTIONS: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+
+function MealTypeFilterChips({
+  selected,
+  onSelect,
+}: {
+  selected: MealType | null;
+  onSelect: (value: MealType | null) => void;
+}) {
+  return (
+    <View style={styles.mealTypeRow}>
+      {MEAL_TYPE_OPTIONS.map((value) => {
+        const isSelected = value === selected;
+        const { off, on, aspectRatio } = MEAL_TYPE_PILL_IMAGES[value];
+        return (
+          <Pressable
+            key={value}
+            onPress={() => onSelect(isSelected ? null : value)}
+            style={({ pressed }) => [styles.mealTypePill, { aspectRatio }, pressed && styles.pressed]}
+          >
+            <Image source={off} style={styles.mealTypePillImage} contentFit="contain" />
+            {isSelected && <Image source={on} style={styles.mealTypePillImage} contentFit="contain" />}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 const NUTRITION_FETCH_TIMEOUT_MS = 30_000;
 
@@ -339,11 +387,7 @@ export default function NewMealRecordScreen() {
                   <Image source={NAMING_FORM_CARD_IMAGE} style={styles.formCardImage} contentFit="contain" />
 
                   <View style={[styles.chipsZone, NAMING_CHIPS_ZONE]}>
-                    <TagChips
-                      options={MEAL_TYPE_OPTIONS}
-                      selected={mealType}
-                      onSelect={(value) => setMealType(value as MealType | null)}
-                    />
+                    <MealTypeFilterChips selected={mealType} onSelect={setMealType} />
                   </View>
 
                   {/* The card art already draws the "料理名"/感想 placeholder
@@ -627,6 +671,18 @@ const styles = StyleSheet.create({
   },
   chipsZone: {
     position: 'absolute',
+  },
+  mealTypeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: Spacing.two,
+  },
+  mealTypePill: {
+    height: 36,
+  },
+  mealTypePillImage: {
+    ...StyleSheet.absoluteFillObject,
   },
   inputPatch: {
     position: 'absolute',

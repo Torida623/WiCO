@@ -15,7 +15,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TagChips } from '@/components/chat/tag-chips';
+import { QuickInsertProvider, QuickInsertTextInput } from '@/components/quick-insert-bar';
 import { ScreenHeader } from '@/components/screen-header';
+import { ServingsPicker, ServingsValue, servingsLabel } from '@/components/servings-picker';
 import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -92,8 +94,13 @@ function seasoningGroupText(group: SeasoningGroup): string {
   return group.mode === 'sequential' ? formatSequentialItemsText(group.items) : group.text.trim();
 }
 
-function buildIngredientsText(basicText: string, garnishText: string, seasoningGroups: SeasoningGroup[]): string {
-  const blocks: string[] = [];
+function buildIngredientsText(
+  servings: ServingsValue,
+  basicText: string,
+  garnishText: string,
+  seasoningGroups: SeasoningGroup[],
+): string {
+  const blocks: string[] = [servingsLabel(servings)];
   if (basicText.trim()) blocks.push(basicText.trim());
   if (garnishText.trim()) blocks.push(`〈添え物・飾り〉\n${garnishText.trim()}`);
   seasoningGroups.forEach((group, index) => {
@@ -118,6 +125,7 @@ export default function NewRecipeScreen() {
   const windowWidth = boxWidth * (1 - WINDOW_INSET_LEFT - WINDOW_INSET_RIGHT);
   const windowHeight = boxHeight * (1 - WINDOW_INSET_TOP - WINDOW_INSET_BOTTOM);
   const [title, setTitle] = useState('');
+  const [servings, setServings] = useState<ServingsValue>('2');
   const [basicText, setBasicText] = useState('');
   const [garnishText, setGarnishText] = useState('');
   const [seasoningGroups, setSeasoningGroups] = useState<SeasoningGroup[]>([
@@ -298,7 +306,7 @@ export default function NewRecipeScreen() {
       await saveUserRecipe({
         title,
         photoUri: photoUri ?? undefined,
-        ingredientsText: buildIngredientsText(basicText, garnishText, seasoningGroups),
+        ingredientsText: buildIngredientsText(servings, basicText, garnishText, seasoningGroups),
         stepsText: buildStepsText(steps),
         publish,
         course,
@@ -321,7 +329,7 @@ export default function NewRecipeScreen() {
       <View style={[styles.absoluteFill, { backgroundColor: theme.background, opacity: 0.3 }]} />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="レシピを投稿する" onBack={() => router.back()} />
+        <ScreenHeader onBack={() => router.back()} />
 
         <KeyboardAvoidingView style={styles.flex} keyboardVerticalOffset={Spacing.six}>
           <ScrollView
@@ -463,10 +471,15 @@ export default function NewRecipeScreen() {
 
             </View>
 
+            <QuickInsertProvider>
             <View style={[styles.formCard, { backgroundColor: theme.background }]}>
               <View style={styles.section}>
-                <ThemedText type="smallBold" style={styles.heading}>基本の材料</ThemedText>
-                <TextInput
+                <View style={styles.ingredientsHeadingRow}>
+                  <ThemedText type="smallBold" style={styles.heading}>基本の材料</ThemedText>
+                  <ServingsPicker value={servings} onChange={setServings} />
+                </View>
+                <QuickInsertTextInput
+                  kind="basic"
                   value={basicText}
                   onChangeText={setBasicText}
                   placeholder={'1行に1つずつ書いてね\n例）卵　2個'}
@@ -478,7 +491,8 @@ export default function NewRecipeScreen() {
 
               <View style={styles.section}>
                 <ThemedText type="smallBold" style={styles.heading}>付け合わせ（任意）</ThemedText>
-                <TextInput
+                <QuickInsertTextInput
+                  kind="garnish"
                   value={garnishText}
                   onChangeText={setGarnishText}
                   placeholder={'1行に1つずつ書いてね\n例）パセリ　少々'}
@@ -530,10 +544,15 @@ export default function NewRecipeScreen() {
                       <View style={styles.seasoningItemsWrap}>
                         {group.items.map((item, itemIndex) => (
                           <View key={itemIndex} style={styles.seasoningItemRow}>
-                            <ThemedText type="small" themeColor="textSecondary" style={styles.seasoningItemNumber}>
-                              {itemIndex + 1}.
+                            <ThemedText
+                              type="small"
+                              themeColor="textSecondary"
+                              numberOfLines={1}
+                              style={styles.seasoningItemNumber}>
+                              {`${itemIndex + 1}.`}
                             </ThemedText>
-                            <TextInput
+                            <QuickInsertTextInput
+                              kind="seasoning"
                               value={item.name}
                               onChangeText={(text) => updateSeasoningItem(index, itemIndex, 'name', text)}
                               placeholder="調味料名"
@@ -544,7 +563,8 @@ export default function NewRecipeScreen() {
                                 { backgroundColor: theme.backgroundElement, color: theme.text },
                               ]}
                             />
-                            <TextInput
+                            <QuickInsertTextInput
+                              kind="seasoning"
                               value={item.amount}
                               onChangeText={(text) => updateSeasoningItem(index, itemIndex, 'amount', text)}
                               placeholder="分量"
@@ -581,7 +601,8 @@ export default function NewRecipeScreen() {
                         </Pressable>
                       </View>
                     ) : (
-                      <TextInput
+                      <QuickInsertTextInput
+                        kind="seasoning"
                         value={group.text}
                         onChangeText={(text) => updateSeasoningGroupText(index, text)}
                         placeholder={'1行に1つずつ書いてね\n例）醤油　大さじ1'}
@@ -601,6 +622,7 @@ export default function NewRecipeScreen() {
                 </Pressable>
               </View>
             </View>
+            </QuickInsertProvider>
 
             <View style={[styles.formCard, { backgroundColor: theme.background }]}>
               <View style={styles.section}>
@@ -608,8 +630,12 @@ export default function NewRecipeScreen() {
                 <View style={styles.seasoningItemsWrap}>
                   {steps.map((step, index) => (
                     <View key={index} style={styles.stepRow}>
-                      <ThemedText type="small" themeColor="textSecondary" style={styles.seasoningItemNumber}>
-                        {index + 1}.
+                      <ThemedText
+                        type="small"
+                        themeColor="textSecondary"
+                        numberOfLines={1}
+                        style={styles.seasoningItemNumber}>
+                        {`${index + 1}.`}
                       </ThemedText>
                       <TextInput
                         value={step}
@@ -752,6 +778,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.one,
   },
+  ingredientsHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   infoButton: {
     width: 22,
     height: 22,
@@ -807,7 +838,8 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   seasoningItemNumber: {
-    width: 16,
+    minWidth: 22,
+    flexShrink: 0,
   },
   seasoningItemName: {
     flex: 2,

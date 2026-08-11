@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { Href, router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,6 +8,8 @@ import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+
+const HUB_BACKGROUND = require('@/assets/images/menu/menu-hub-door.jpg');
 
 function HubButton({ label, onPress }: { label: string; onPress: () => void }) {
   return (
@@ -23,6 +26,8 @@ function HubButton({ label, onPress }: { label: string; onPress: () => void }) {
 export default function MenuHubScreen() {
   return (
     <ThemedView type="backgroundElement" style={styles.container}>
+      <Image source={HUB_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
+      <ThemedView type="background" style={[styles.absoluteFill, { opacity: 0.3 }]} />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScreenHeader title="献立を考える" />
@@ -40,6 +45,9 @@ export default function MenuHubScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  absoluteFill: {
+    ...StyleSheet.absoluteFillObject,
   },
   safeArea: {
     flex: 1,

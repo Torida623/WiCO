@@ -44,7 +44,7 @@ export default function RecipeLabScreen() {
       <View style={[styles.absoluteFill, { backgroundColor: theme.background, opacity: 0.3 }]} />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="レシピ研究所" />
+        <ScreenHeader />
 
         <View style={styles.content}>
           <ChoiceButton
