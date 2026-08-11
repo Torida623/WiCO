@@ -10,7 +10,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { listMyPublicRecipes, listRecipes, listRecommendedRecipes, SavedRecipe } from '@/lib/recipes';
+import { buildRecipeTagChips } from '@/lib/recipe-tags';
+import { listMyPublicRecipes, listRecommendedRecipes, listSavedRecipes, SavedRecipe } from '@/lib/recipes';
 
 const LAB_BACKGROUND = require('@/assets/images/recipe-lab/lab-bg.jpg');
 
@@ -18,7 +19,7 @@ type Tab = 'recommended' | 'saved' | 'posted';
 
 const TAB_LOADERS: Record<Tab, () => Promise<SavedRecipe[]>> = {
   recommended: listRecommendedRecipes,
-  saved: listRecipes,
+  saved: listSavedRecipes,
   posted: listMyPublicRecipes,
 };
 
@@ -27,18 +28,6 @@ const EMPTY_STATE_TEXT: Record<Tab, string> = {
   saved: 'まだ保存したレシピがないよ。気に入った献立や、自分のレシピを残してみてね。',
   posted: 'まだレシピを投稿してないよ。',
 };
-
-function formatSavedAt(savedAt: string): string {
-  const date = new Date(savedAt);
-  return `${date.getMonth() + 1}/${date.getDate()}`;
-}
-
-/** Only the 保存したレシピ tab mixes sources (own writing vs. saved from a decided menu) worth labeling — おすすめ/投稿したレシピ are each already a single, tab-implied source. */
-function sourceLabel(source: SavedRecipe['source']): string | null {
-  if (source === 'user') return '自分のレシピ';
-  if (source === 'ai') return '献立ノートから保存';
-  return null;
-}
 
 function TabButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
@@ -135,11 +124,17 @@ export default function RecipeLabListScreen() {
                       <ThemedText type="smallBold" numberOfLines={2}>
                         {item.title}
                       </ThemedText>
-                      <ThemedText type="small" themeColor="textSecondary">
-                        {[sourceLabel(item.source), item.course, formatSavedAt(item.savedAt)]
-                          .filter(Boolean)
-                          .join(' ・ ')}
-                      </ThemedText>
+                      <View style={styles.tagWrap}>
+                        {buildRecipeTagChips(item).map((chip) => (
+                          <View
+                            key={chip.key}
+                            style={[styles.tagChip, { backgroundColor: chip.background, borderColor: chip.text }]}>
+                            <ThemedText type="small" style={{ color: chip.text }}>
+                              {chip.label}
+                            </ThemedText>
+                          </View>
+                        ))}
+                      </View>
                     </View>
                   </ThemedView>
                 )}
@@ -232,6 +227,17 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     gap: Spacing.one,
+  },
+  tagWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.one,
+  },
+  tagChip: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half,
+    borderRadius: Spacing.four,
+    borderWidth: 1,
   },
   pressed: {
     opacity: 0.7,

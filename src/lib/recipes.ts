@@ -19,6 +19,11 @@ export type SavedRecipe = {
   formatTag?: string | null;
   tasteTag?: string | null;
   temperatureTag?: string | null;
+  /** Optional one-line description of the dish, shown on the detail screen only (not list rows). */
+  summary?: string | null;
+  /** Only ever set on source: 'user' recipes — whether this was published to the public feed. Used to keep
+   * 保存したレシピ and 投稿したレシピ mutually exclusive: a published recipe only shows in the posted tab. */
+  published?: boolean;
   /** Only set for source: 'public' — the Supabase auth.uid() that posted it, used to gate the delete link to the owner. */
   ownerId?: string;
 };
@@ -34,6 +39,7 @@ export type NewUserRecipeInput = {
   formatTag?: string | null;
   tasteTag?: string | null;
   temperatureTag?: string | null;
+  summary?: string;
 };
 
 export type NewAiRecipeInput = {
@@ -72,6 +78,13 @@ function sortBySavedAtDesc(recipes: SavedRecipe[]): SavedRecipe[] {
 
 export async function listRecipes(): Promise<SavedRecipe[]> {
   return sortBySavedAtDesc(await readAll());
+}
+
+/** 保存したレシピ tab: local recipes minus the ones already published, so a recipe only ever shows in
+ * one of 保存したレシピ / 投稿したレシピ, never both. Other callers (e.g. the menu-chat recipe picker)
+ * should keep using listRecipes() — this filter is specific to that tab's mutual-exclusivity rule. */
+export async function listSavedRecipes(): Promise<SavedRecipe[]> {
+  return (await listRecipes()).filter((recipe) => !recipe.published);
 }
 
 export async function getRecipe(id: string): Promise<SavedRecipe | undefined> {
@@ -115,6 +128,8 @@ export async function saveUserRecipe(input: NewUserRecipeInput): Promise<SavedRe
     formatTag: input.formatTag,
     tasteTag: input.tasteTag,
     temperatureTag: input.temperatureTag,
+    summary: input.summary?.trim() || undefined,
+    published: input.publish,
   };
 
   const recipes = await readAll();
@@ -166,11 +181,12 @@ type PublicRecipeRow = {
   format_tag: string | null;
   taste_tag: string | null;
   temperature_tag: string | null;
+  summary: string | null;
   created_at: string;
 };
 
 const PUBLIC_RECIPE_COLUMNS =
-  'id, owner_id, title, book_content, photo_url, course, genre_tag, format_tag, taste_tag, temperature_tag, created_at';
+  'id, owner_id, title, book_content, photo_url, course, genre_tag, format_tag, taste_tag, temperature_tag, summary, created_at';
 
 function fromPublicRow(row: PublicRecipeRow): SavedRecipe {
   return {
@@ -186,6 +202,7 @@ function fromPublicRow(row: PublicRecipeRow): SavedRecipe {
     formatTag: row.format_tag,
     tasteTag: row.taste_tag,
     temperatureTag: row.temperature_tag,
+    summary: row.summary,
   };
 }
 
@@ -217,6 +234,7 @@ export async function publishRecipe(recipe: SavedRecipe): Promise<void> {
     format_tag: recipe.formatTag ?? null,
     taste_tag: recipe.tasteTag ?? null,
     temperature_tag: recipe.temperatureTag ?? null,
+    summary: recipe.summary ?? null,
   });
   if (error) throw error;
 }

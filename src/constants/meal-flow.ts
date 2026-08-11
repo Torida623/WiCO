@@ -103,6 +103,16 @@ export const TEMPERATURE_TAG_OPTIONS: { value: string; label: string }[] = [
   { value: '冷', label: '冷' },
 ];
 
+/** Category color-coding for the recipe search tags, shared between the post form (recipe-lab/new.tsx)
+ * and the list rows (recipe-lab/list.tsx) so a tag reads as the same category everywhere. */
+export const GENRE_TAG_TINT = { light: '#F8E2DE', solid: '#C1584A' };
+export const FORMAT_TAG_TINT = { light: '#F6EDD1', solid: '#B08328' };
+export const TASTE_TAG_TINT = { light: '#E5EFDD', solid: '#5E8A42' };
+export const TEMPERATURE_TAG_TINT = { light: '#E1ECF5', solid: '#3F6E97' };
+/** Same tint pair shape as the four categories above, for the 料理の種類 (course) tag shown alongside
+ * them on recipe-lab list rows and the detail screen. `solid` matches the app's orange accent. */
+export const COURSE_TAG_TINT = { light: '#FBE2D1', solid: '#F0955B' };
+
 export function getNextStep(current: StepId, answers: Answers): StepId {
   switch (current) {
     case 'entryPoint':

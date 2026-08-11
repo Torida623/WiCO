@@ -25,9 +25,13 @@ import {
   COURSE_OPTIONS,
   Course,
   FORMAT_TAG_OPTIONS,
+  FORMAT_TAG_TINT,
   GENRE_TAG_OPTIONS,
+  GENRE_TAG_TINT,
   TASTE_TAG_OPTIONS,
+  TASTE_TAG_TINT,
   TEMPERATURE_TAG_OPTIONS,
+  TEMPERATURE_TAG_TINT,
 } from '@/constants/meal-flow';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -49,12 +53,6 @@ const WINDOW_INSET_TOP = 0.0917;
 const WINDOW_INSET_BOTTOM = 0.1209;
 const WINDOW_INSET_LEFT = 0.056;
 const WINDOW_INSET_RIGHT = 0.0397;
-
-// Category color-coding for the search tags — light fill when unselected, solid fill when selected.
-const GENRE_TAG_TINT = { light: '#F8E2DE', solid: '#C1584A' };
-const FORMAT_TAG_TINT = { light: '#F6EDD1', solid: '#B08328' };
-const TASTE_TAG_TINT = { light: '#E5EFDD', solid: '#5E8A42' };
-const TEMPERATURE_TAG_TINT = { light: '#E1ECF5', solid: '#3F6E97' };
 
 const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
   mediaTypes: 'images',
@@ -125,6 +123,7 @@ export default function NewRecipeScreen() {
   const windowWidth = boxWidth * (1 - WINDOW_INSET_LEFT - WINDOW_INSET_RIGHT);
   const windowHeight = boxHeight * (1 - WINDOW_INSET_TOP - WINDOW_INSET_BOTTOM);
   const [title, setTitle] = useState('');
+  const [summary, setSummary] = useState('');
   const [servings, setServings] = useState<ServingsValue>('2');
   const [basicText, setBasicText] = useState('');
   const [garnishText, setGarnishText] = useState('');
@@ -174,7 +173,7 @@ export default function NewRecipeScreen() {
   }
 
   function handleShowTagInfo() {
-    Alert.alert('', 'タグを設定すると、タグ検索や献立の提案に使われます。\n同じ色のタグは1つまで選べます。');
+    Alert.alert('', 'タグを設定すると、タグ検索や献立の提案に使われるよ。\n同じ色のタグは1つまで選べるよ。');
   }
 
   function handleShowFormatInfo() {
@@ -321,6 +320,7 @@ export default function NewRecipeScreen() {
         formatTag,
         tasteTag,
         temperatureTag,
+        summary,
       });
       router.back();
     } catch (error) {
@@ -402,6 +402,23 @@ export default function NewRecipeScreen() {
                   placeholder="例）とろとろ卵のオムライス"
                   placeholderTextColor={theme.textSecondary}
                   style={[styles.input, { backgroundColor: theme.backgroundElement, color: theme.text }]}
+                />
+              </View>
+
+              <View style={styles.section}>
+                <ThemedText type="smallBold" style={styles.heading}>どんな料理？（任意）</ThemedText>
+                <TextInput
+                  value={summary}
+                  onChangeText={setSummary}
+                  placeholder="例）お店みたいなとろとろ卵が決め手のオムライス"
+                  placeholderTextColor={theme.textSecondary}
+                  maxLength={40}
+                  multiline
+                  style={[
+                    styles.textArea,
+                    styles.textAreaShort,
+                    { backgroundColor: theme.backgroundElement, color: theme.text },
+                  ]}
                 />
               </View>
 

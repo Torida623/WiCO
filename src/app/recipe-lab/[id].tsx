@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { buildRecipeTagChips } from '@/lib/recipe-tags';
 import { deletePublicRecipe, deleteRecipe, getPublicRecipe, getRecipe, SavedRecipe } from '@/lib/recipes';
 import { getCurrentUserId } from '@/lib/supabase';
 
@@ -67,6 +68,7 @@ export default function RecipeDetailScreen() {
   const { ingredientsText, stepsText } = recipe
     ? splitBookContent(recipe.bookContent)
     : { ingredientsText: '', stepsText: '' };
+  const tagChips = recipe ? buildRecipeTagChips(recipe) : [];
 
   function handleDelete() {
     if (!recipe) return;
@@ -112,15 +114,28 @@ export default function RecipeDetailScreen() {
         {recipe && (
           <ScrollView contentContainerStyle={styles.content}>
             {recipe.photoUri && <Image source={{ uri: recipe.photoUri }} style={styles.photo} contentFit="cover" />}
-            {recipe.course && (
-              <View style={styles.courseBadgeRow}>
-                <ThemedView type="backgroundElement" style={styles.courseBadge}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {recipe.course}
-                  </ThemedText>
-                </ThemedView>
-              </View>
-            )}
+
+            <ThemedView type="background" style={styles.formCard}>
+              <ThemedText type="title">{recipe.title}</ThemedText>
+              {tagChips.length > 0 && (
+                <View style={styles.tagWrap}>
+                  {tagChips.map((chip) => (
+                    <View
+                      key={chip.key}
+                      style={[styles.tagChip, { backgroundColor: chip.background, borderColor: chip.text }]}>
+                      <ThemedText type="small" style={{ color: chip.text }}>
+                        {chip.label}
+                      </ThemedText>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {recipe.summary && (
+                <ThemedText style={styles.bodyText} themeColor="textSecondary">
+                  {recipe.summary}
+                </ThemedText>
+              )}
+            </ThemedView>
 
             {ingredientsText && (
               <ThemedView type="background" style={styles.formCard}>
@@ -182,13 +197,16 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 9,
     borderRadius: Spacing.four,
   },
-  courseBadgeRow: {
-    alignItems: 'center',
+  tagWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.one,
   },
-  courseBadge: {
-    paddingHorizontal: Spacing.three,
+  tagChip: {
+    paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.half,
     borderRadius: Spacing.four,
+    borderWidth: 1,
   },
   formCard: {
     borderRadius: Spacing.four,
