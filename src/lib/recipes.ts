@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import { Course } from '@/constants/meal-flow';
-import { ensureAnonSession, supabase } from '@/lib/supabase';
+import { ensureAnonSession, getCurrentUserId, supabase } from '@/lib/supabase';
 
 export type RecipeSource = 'ai' | 'user' | 'public';
 
@@ -229,6 +229,37 @@ export async function listPublicRecipes(): Promise<SavedRecipe[]> {
     .limit(PUBLIC_FEED_LIMIT);
   if (error) {
     console.error('公開レシピの取得に失敗:', error);
+    return [];
+  }
+  return (data ?? []).map(fromPublicRow);
+}
+
+function shuffle<T>(items: T[]): T[] {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+/** おすすめレシピ tab: a random pick from the public feed. Simplest possible recommendation — no popularity or preference-tag matching yet. */
+export async function listRecommendedRecipes(): Promise<SavedRecipe[]> {
+  return shuffle(await listPublicRecipes());
+}
+
+/** 投稿したレシピ tab: only the public recipes owned by this device's anon session. Read-only, so it must not create a new anon session — a device that has never posted just gets an empty list. */
+export async function listMyPublicRecipes(): Promise<SavedRecipe[]> {
+  const ownerId = await getCurrentUserId();
+  if (!ownerId) return [];
+
+  const { data, error } = await supabase
+    .from(PUBLIC_TABLE)
+    .select(PUBLIC_RECIPE_COLUMNS)
+    .eq('owner_id', ownerId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('投稿したレシピの取得に失敗:', error);
     return [];
   }
   return (data ?? []).map(fromPublicRow);

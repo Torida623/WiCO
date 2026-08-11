@@ -1,10 +1,9 @@
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { RecipeBook } from '@/components/chat/recipe-book';
 import { ScreenHeader } from '@/components/screen-header';
 import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
@@ -15,6 +14,19 @@ import { deletePublicRecipe, deleteRecipe, getPublicRecipe, getRecipe, SavedReci
 import { getCurrentUserId } from '@/lib/supabase';
 
 const LAB_BACKGROUND = require('@/assets/images/recipe-lab/lab-bg.jpg');
+
+const STEPS_MARKER = '【作り方】';
+
+/** bookContent is always `【材料】\n...\n\n【作り方】\n...` (see saveUserRecipe in lib/recipes.ts). Strips
+ * the bracketed markers since the form cards below supply their own headings. */
+function splitBookContent(content: string): { ingredientsText: string; stepsText: string } {
+  const stepsIndex = content.indexOf(STEPS_MARKER);
+  if (stepsIndex < 0) return { ingredientsText: content.replace('【材料】', '').trim(), stepsText: '' };
+  return {
+    ingredientsText: content.slice(0, stepsIndex).replace('【材料】', '').trim(),
+    stepsText: content.slice(stepsIndex + STEPS_MARKER.length).trim(),
+  };
+}
 
 export default function RecipeDetailScreen() {
   const theme = useTheme();
@@ -51,6 +63,10 @@ export default function RecipeDetailScreen() {
       cancelled = true;
     };
   }, [id]);
+
+  const { ingredientsText, stepsText } = recipe
+    ? splitBookContent(recipe.bookContent)
+    : { ingredientsText: '', stepsText: '' };
 
   function handleDelete() {
     if (!recipe) return;
@@ -94,7 +110,7 @@ export default function RecipeDetailScreen() {
         )}
 
         {recipe && (
-          <>
+          <ScrollView contentContainerStyle={styles.content}>
             {recipe.photoUri && <Image source={{ uri: recipe.photoUri }} style={styles.photo} contentFit="cover" />}
             {recipe.course && (
               <View style={styles.courseBadgeRow}>
@@ -105,9 +121,24 @@ export default function RecipeDetailScreen() {
                 </ThemedView>
               </View>
             )}
-            <View style={styles.bookArea}>
-              <RecipeBook content={recipe.bookContent} onRestart={() => router.back()} restartLabel="一覧に戻る" />
-            </View>
+
+            {ingredientsText && (
+              <ThemedView type="background" style={styles.formCard}>
+                <ThemedText type="smallBold" style={styles.heading}>
+                  材料
+                </ThemedText>
+                <ThemedText style={styles.bodyText}>{ingredientsText}</ThemedText>
+              </ThemedView>
+            )}
+            {stepsText && (
+              <ThemedView type="background" style={styles.formCard}>
+                <ThemedText type="smallBold" style={styles.heading}>
+                  作り方
+                </ThemedText>
+                <ThemedText style={styles.bodyText}>{stepsText}</ThemedText>
+              </ThemedView>
+            )}
+
             {canDelete && (
               <Pressable onPress={handleDelete} hitSlop={8} style={styles.deleteRow}>
                 {({ pressed }) => (
@@ -117,7 +148,7 @@ export default function RecipeDetailScreen() {
                 )}
               </Pressable>
             )}
-          </>
+          </ScrollView>
         )}
       </SafeAreaView>
     </View>
@@ -142,21 +173,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  content: {
+    padding: Spacing.three,
+    gap: Spacing.three,
+  },
   photo: {
     width: '100%',
     aspectRatio: 16 / 9,
+    borderRadius: Spacing.four,
   },
   courseBadgeRow: {
     alignItems: 'center',
-    paddingTop: Spacing.two,
   },
   courseBadge: {
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.half,
     borderRadius: Spacing.four,
   },
-  bookArea: {
-    flex: 1,
+  formCard: {
+    borderRadius: Spacing.four,
+    padding: Spacing.three,
+    gap: Spacing.two,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  heading: {
+    fontSize: 15,
+  },
+  bodyText: {
+    fontSize: 14,
+    lineHeight: 22,
   },
   deleteRow: {
     alignItems: 'center',

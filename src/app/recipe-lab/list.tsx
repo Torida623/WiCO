@@ -10,21 +10,34 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { listPublicRecipes, listRecipes, SavedRecipe } from '@/lib/recipes';
+import { listMyPublicRecipes, listRecipes, listRecommendedRecipes, SavedRecipe } from '@/lib/recipes';
 
 const LAB_BACKGROUND = require('@/assets/images/recipe-lab/lab-bg.jpg');
 
-type Tab = 'mine' | 'public';
+type Tab = 'recommended' | 'saved' | 'posted';
+
+const TAB_LOADERS: Record<Tab, () => Promise<SavedRecipe[]>> = {
+  recommended: listRecommendedRecipes,
+  saved: listRecipes,
+  posted: listMyPublicRecipes,
+};
+
+const EMPTY_STATE_TEXT: Record<Tab, string> = {
+  recommended: 'まだおすすめできるレシピがないよ。みんなの投稿が増えたらここに出るよ。',
+  saved: 'まだ保存したレシピがないよ。気に入った献立や、自分のレシピを残してみてね。',
+  posted: 'まだレシピを投稿してないよ。',
+};
 
 function formatSavedAt(savedAt: string): string {
   const date = new Date(savedAt);
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
-function sourceLabel(source: SavedRecipe['source']): string {
+/** Only the 保存したレシピ tab mixes sources (own writing vs. saved from a decided menu) worth labeling — おすすめ/投稿したレシピ are each already a single, tab-implied source. */
+function sourceLabel(source: SavedRecipe['source']): string | null {
   if (source === 'user') return '自分のレシピ';
-  if (source === 'public') return 'みんなのレシピ';
-  return '献立ノートから保存';
+  if (source === 'ai') return '献立ノートから保存';
+  return null;
 }
 
 function TabButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
@@ -34,7 +47,12 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
         <ThemedView
           type={active ? 'accent' : 'backgroundElement'}
           style={[styles.tabButton, pressed && styles.pressed]}>
-          <ThemedText type="smallBold" themeColor={active ? 'background' : undefined}>
+          <ThemedText
+            type="smallBold"
+            themeColor={active ? 'background' : undefined}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}>
             {label}
           </ThemedText>
         </ThemedView>
@@ -45,7 +63,7 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
 
 export default function RecipeLabListScreen() {
   const theme = useTheme();
-  const [tab, setTab] = useState<Tab>('mine');
+  const [tab, setTab] = useState<Tab>('recommended');
   const [recipes, setRecipes] = useState<SavedRecipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -53,8 +71,7 @@ export default function RecipeLabListScreen() {
     useCallback(() => {
       let cancelled = false;
       setIsLoading(true);
-      const load = tab === 'mine' ? listRecipes() : listPublicRecipes();
-      load.then((loaded) => {
+      TAB_LOADERS[tab]().then((loaded) => {
         if (!cancelled) {
           setRecipes(loaded);
           setIsLoading(false);
@@ -74,17 +91,29 @@ export default function RecipeLabListScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScreenHeader onBack={() => router.back()} />
 
+        <View style={styles.searchRow}>
+          <ThemedView type="backgroundElement" style={styles.searchButton}>
+            <ThemedText type="smallBold" themeColor="textSecondary">
+              🔍 検索する
+            </ThemedText>
+            <View style={[styles.lockBadge, { backgroundColor: theme.backgroundSelected }]}>
+              <ThemedText type="small" themeColor="textSecondary">
+                🔒 有料
+              </ThemedText>
+            </View>
+          </ThemedView>
+        </View>
+
         <View style={styles.tabRow}>
-          <TabButton label="自分のレシピ" active={tab === 'mine'} onPress={() => setTab('mine')} />
-          <TabButton label="みんなのレシピ" active={tab === 'public'} onPress={() => setTab('public')} />
+          <TabButton label="おすすめレシピ" active={tab === 'recommended'} onPress={() => setTab('recommended')} />
+          <TabButton label="保存したレシピ" active={tab === 'saved'} onPress={() => setTab('saved')} />
+          <TabButton label="投稿したレシピ" active={tab === 'posted'} onPress={() => setTab('posted')} />
         </View>
 
         {!isLoading && recipes.length === 0 ? (
           <View style={styles.emptyState}>
             <ThemedText type="small" themeColor="textSecondary">
-              {tab === 'mine'
-                ? 'まだ保存したレシピがないよ。気に入った献立や、自分のレシピを残してみてね。'
-                : 'まだみんなのレシピが投稿されてないよ。'}
+              {EMPTY_STATE_TEXT[tab]}
             </ThemedText>
           </View>
         ) : (
@@ -107,8 +136,9 @@ export default function RecipeLabListScreen() {
                         {item.title}
                       </ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
-                        {sourceLabel(item.source)}
-                        {item.course ? ` ・ ${item.course}` : ''} ・ {formatSavedAt(item.savedAt)}
+                        {[sourceLabel(item.source), item.course, formatSavedAt(item.savedAt)]
+                          .filter(Boolean)
+                          .join(' ・ ')}
                       </ThemedText>
                     </View>
                   </ThemedView>
@@ -135,9 +165,26 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
+  searchRow: {
+    paddingHorizontal: Spacing.three,
+    paddingBottom: Spacing.two,
+  },
+  searchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    borderRadius: Spacing.three,
+  },
+  lockBadge: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half,
+    borderRadius: Spacing.four,
+  },
   tabRow: {
     flexDirection: 'row',
-    gap: Spacing.two,
+    gap: Spacing.one,
     paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.two,
   },
@@ -146,6 +193,7 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     alignItems: 'center',
+    paddingHorizontal: Spacing.half,
     paddingVertical: Spacing.two,
     borderRadius: Spacing.three,
   },
