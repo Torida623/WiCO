@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { Href, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Dimensions, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
@@ -24,6 +25,8 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { listSearchableRecipes, SavedRecipe } from '@/lib/recipes';
 import { TagChips } from '@/components/chat/tag-chips';
+
+const SEARCH_BACKGROUND = require('@/assets/images/recipe-lab/search-bg.jpg');
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CLOSE_DRAG_DISTANCE = 100;
@@ -117,6 +120,8 @@ export function RecipeSearchPanel({ visible, onClose }: RecipeSearchPanelProps) 
 
       <GestureDetector gesture={panGesture}>
         <Animated.View style={[styles.panel, { backgroundColor: theme.background }, panelStyle]}>
+          <Image source={SEARCH_BACKGROUND} style={styles.backgroundImage} contentFit="cover" />
+          <View style={[styles.backgroundImage, { backgroundColor: theme.background, opacity: 0.3 }]} />
           <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
             <View style={styles.header}>
               <Pressable onPress={onClose} hitSlop={8}>
@@ -137,7 +142,10 @@ export function RecipeSearchPanel({ visible, onClose }: RecipeSearchPanelProps) 
                 onChangeText={setQuery}
                 placeholder="料理名で検索"
                 placeholderTextColor={theme.textSecondary}
-                style={[styles.input, { color: theme.text, borderColor: theme.backgroundSelected }]}
+                style={[
+                  styles.input,
+                  { backgroundColor: theme.background, color: theme.text, borderColor: theme.backgroundSelected },
+                ]}
               />
             </View>
 
@@ -224,6 +232,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     right: 0,
     width: '100%',
+  },
+  backgroundImage: {
+    ...StyleSheet.absoluteFillObject,
   },
   safeArea: {
     flex: 1,

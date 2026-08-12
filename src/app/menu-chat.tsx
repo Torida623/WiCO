@@ -50,6 +50,10 @@ import { getKitchenMemory } from '@/lib/kitchen-memory';
 import { summarizeRecentMealsForPrompt } from '@/lib/meal-records';
 import { listRecipes, SavedRecipe } from '@/lib/recipes';
 
+/** Labels sourced from the official ALLERGENS list, used to split the allergy-step's checked chips back
+ * into true allergens (safety-critical) vs. mere dislikes when submitting — see handleAllergySubmit(). */
+const ALLERGEN_LABEL_SET = new Set(ALLERGENS.map((allergen) => allergen.label));
+
 const ROOM_BACKGROUND = require('@/assets/images/perokoko-room-bg.jpg');
 const ROOM_BACKGROUND_NO_BOOK = require('@/assets/images/perokoko-room-bg-nobook.jpg');
 const ROOM_BACKGROUND_NIGHT = require('@/assets/images/perokoko-room-bg-night.jpg');
@@ -434,8 +438,13 @@ export default function MealChatScreen() {
 
   function handleAllergySubmit() {
     const checkedProfileList = profileAllergyItems.filter((item) => checkedProfileItems[item]);
-    const allergy = [...checkedProfileList, allergyValue.trim()].filter(Boolean).join('、');
-    advance({ ...answers, allergy }, allergy || '（特になし）');
+    const freeText = allergyValue.trim();
+    const allergens = checkedProfileList.filter((item) => ALLERGEN_LABEL_SET.has(item)).join('、');
+    const dislikedFoods = [...checkedProfileList.filter((item) => !ALLERGEN_LABEL_SET.has(item)), freeText]
+      .filter(Boolean)
+      .join('、');
+    const display = [...checkedProfileList, freeText].filter(Boolean).join('、');
+    advance({ ...answers, allergens, dislikedFoods }, display || '（特になし）');
     setAllergyValue('');
   }
 

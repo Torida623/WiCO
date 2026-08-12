@@ -34,7 +34,12 @@ export type Answers = {
   people?: string;
   cookingTime?: 'relaxed' | 'quick';
   mood?: string;
-  allergy?: string;
+  /** Registered items that are true allergens (from the official ALLERGENS list) — treated as an absolute
+   * safety constraint by the AI, distinct from dislikedFoods which is just a preference. */
+  allergens?: string;
+  /** Disliked ingredients + one-off freeform exceptions from the allergy step — avoided on a best-effort
+   * basis, not the hard safety constraint that allergens is. */
+  dislikedFoods?: string;
   pinnedRecipe?: PinnedDish;
   ingredients?: string;
   shopping?: 'yes' | 'no';

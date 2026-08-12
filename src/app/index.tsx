@@ -1,44 +1,63 @@
 import { Image } from 'expo-image';
 import { Href, router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet } from 'react-native';
+import { DimensionValue, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from '@/components/screen-header';
 import { SideMenu } from '@/components/side-menu';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 
+// Background and the three signs are one hand-drawn image (door + hanging plaque + two nameplates),
+// so no separate button chrome/text is rendered — just invisible tap zones positioned over the art.
+// Fills the whole screen like every other screen's background (same absoluteFill + cover pattern as
+// recipe-lab/list.tsx), with the zones as siblings of the image so their % coordinates line up with it.
 const HUB_BACKGROUND = require('@/assets/images/menu/menu-hub-door.jpg');
 
-function HubButton({ label, onPress }: { label: string; onPress: () => void }) {
+/** An invisible tap zone positioned over a hand-drawn sign baked into the door background. */
+function DoorZone({
+  top,
+  height,
+  left,
+  right,
+  onPress,
+}: {
+  top: DimensionValue;
+  height: DimensionValue;
+  left: DimensionValue;
+  right: DimensionValue;
+  onPress: () => void;
+}) {
   return (
-    <Pressable onPress={onPress}>
-      {({ pressed }) => (
-        <ThemedView type="backgroundElement" style={[styles.button, pressed && styles.pressed]}>
-          <ThemedText type="subtitle">{label}</ThemedText>
-        </ThemedView>
-      )}
+    <Pressable onPress={onPress} style={[styles.doorZone, { top, height, left, right }]}>
+      {({ pressed }) => pressed && <View style={styles.doorZonePressedOverlay} />}
     </Pressable>
   );
 }
 
 export default function MenuHubScreen() {
   return (
-    <ThemedView type="backgroundElement" style={styles.container}>
+    <View style={styles.container}>
       <Image source={HUB_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
-      <ThemedView type="background" style={[styles.absoluteFill, { opacity: 0.3 }]} />
+      <DoorZone top="26%" height="19%" left="5%" right="8%" onPress={() => router.push('/menu-chat')} />
+      <DoorZone
+        top="48%"
+        height="16%"
+        left="10%"
+        right="12%"
+        onPress={() => router.push('/decided-menus' as Href)}
+      />
+      <DoorZone
+        top="66%"
+        height="18%"
+        left="10%"
+        right="15%"
+        onPress={() => router.push('/food-preferences' as Href)}
+      />
       <SideMenu />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="献立を考える" />
-
-        <ScrollView contentContainerStyle={styles.content}>
-          <HubButton label="献立を考える" onPress={() => router.push('/menu-chat')} />
-          <HubButton label="献立ノート" onPress={() => router.push('/decided-menus' as Href)} />
-          <HubButton label="苦手・アレルギー登録" onPress={() => router.push('/food-preferences' as Href)} />
-        </ScrollView>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']} pointerEvents="box-none">
+        <ScreenHeader />
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
@@ -55,21 +74,12 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
-  content: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.four,
-    gap: Spacing.three,
+  doorZone: {
+    position: 'absolute',
   },
-  button: {
-    paddingHorizontal: Spacing.five,
-    paddingVertical: Spacing.three,
-    borderRadius: Spacing.four,
-    minWidth: 220,
-    alignItems: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
+  doorZonePressedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    borderRadius: Spacing.three,
   },
 });

@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -18,6 +19,11 @@ import {
   removeDislikedIngredient,
   setAllergyFavorite,
 } from '@/lib/food-preferences';
+
+const BACKGROUND = require('@/assets/images/menu/food-preferences-bg.jpg');
+/** ひなた's proposed palette: moss green for disliked-ingredient chips, terracotta for allergy chips — both distinct from the orange `accent` used elsewhere. */
+const DISLIKED_CHIP_COLOR = '#7F9858';
+const ALLERGY_CHIP_COLOR = '#C9785F';
 
 export default function FoodPreferencesScreen() {
   const theme = useTheme();
@@ -61,23 +67,28 @@ export default function FoodPreferencesScreen() {
   const favoriteAllergens = ALLERGENS.filter((allergen) => allergyFavorites.includes(allergen.id));
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
+      <Image source={BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
+      <ThemedView type="background" style={[styles.absoluteFill, { opacity: 0.3 }]} />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="苦手・アレルギー登録" onBack={() => router.back()} />
+        <ScreenHeader onBack={() => router.back()} />
 
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.section}>
-            <ThemedText type="smallBold">苦手な食材</ThemedText>
+            <ThemedText type="smallBold" style={styles.sectionHeading}>
+              苦手な食材
+            </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              登録しておくと献立を考えるときに毎回入力しなくて済むよ（上限{DISLIKED_INGREDIENT_LIMIT}件）
+              登録すると、献立を考える時の苦手食材の入力がスムーズになるよ！（{DISLIKED_INGREDIENT_LIMIT}個まで）
             </ThemedText>
 
             <View style={styles.chipRow}>
               {disliked.map((name) => (
                 <Pressable key={name} onPress={() => handleRemoveDisliked(name)}>
                   {({ pressed }) => (
-                    <ThemedView type="accent" style={[styles.chip, pressed && styles.pressed]}>
+                    <ThemedView
+                      style={[styles.chip, { backgroundColor: DISLIKED_CHIP_COLOR }, pressed && styles.pressed]}>
                       <ThemedText type="small" themeColor="background">
                         {name} ×
                       </ThemedText>
@@ -88,23 +99,23 @@ export default function FoodPreferencesScreen() {
             </View>
 
             <View style={styles.inputRow}>
-              <ThemedView type="backgroundElement" style={styles.textInputWrapper}>
+              <ThemedView type="background" style={styles.textInputWrapper}>
                 <TextInput
                   value={freeText}
                   onChangeText={setFreeText}
                   onSubmitEditing={handleAddDisliked}
                   editable={!atDislikedLimit}
-                  placeholder={atDislikedLimit ? '上限に達したよ' : '苦手な食材を入力してね'}
+                  placeholder={atDislikedLimit ? `${DISLIKED_INGREDIENT_LIMIT}個登録されているよ！` : '例）トマト'}
                   placeholderTextColor={theme.textSecondary}
                   style={[styles.textInput, { color: theme.text }]}
                 />
               </ThemedView>
               <Pressable onPress={handleAddDisliked} disabled={atDislikedLimit || !freeText.trim()}>
                 {({ pressed }) => (
-                  <ThemedView
-                    type="backgroundElement"
-                    style={[styles.addButton, (pressed || atDislikedLimit || !freeText.trim()) && styles.pressed]}>
-                    <ThemedText type="smallBold">追加</ThemedText>
+                  <ThemedView type="accent" style={[styles.addButton, pressed && styles.pressed]}>
+                    <ThemedText type="smallBold" themeColor="background">
+                      追加
+                    </ThemedText>
                   </ThemedView>
                 )}
               </Pressable>
@@ -112,7 +123,9 @@ export default function FoodPreferencesScreen() {
           </View>
 
           <View style={styles.section}>
-            <ThemedText type="smallBold">アレルギー</ThemedText>
+            <ThemedText type="smallBold" style={styles.sectionHeading}>
+              アレルギー
+            </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               登録した品目は献立を考えるときに避けてもらえるよ
             </ThemedText>
@@ -121,7 +134,8 @@ export default function FoodPreferencesScreen() {
               {favoriteAllergens.map((allergen) => (
                 <Pressable key={allergen.id} onPress={() => handleRemoveAllergyFavorite(allergen.id)}>
                   {({ pressed }) => (
-                    <ThemedView type="accent" style={[styles.chip, pressed && styles.pressed]}>
+                    <ThemedView
+                      style={[styles.chip, { backgroundColor: ALLERGY_CHIP_COLOR }, pressed && styles.pressed]}>
                       <ThemedText type="small" themeColor="background">
                         {allergen.label} ×
                       </ThemedText>
@@ -133,7 +147,7 @@ export default function FoodPreferencesScreen() {
 
             <Pressable onPress={() => router.push('/food-preferences/allergy-list' as Href)}>
               {({ pressed }) => (
-                <ThemedView type="backgroundElement" style={[styles.listButton, pressed && styles.pressed]}>
+                <ThemedView type="background" style={[styles.listButton, pressed && styles.pressed]}>
                   <ThemedText type="smallBold">一覧から選ぶ</ThemedText>
                 </ThemedView>
               )}
@@ -141,13 +155,16 @@ export default function FoodPreferencesScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  absoluteFill: {
+    ...StyleSheet.absoluteFillObject,
   },
   safeArea: {
     flex: 1,
@@ -161,6 +178,10 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: Spacing.two,
+  },
+  sectionHeading: {
+    fontSize: 20,
+    lineHeight: 26,
   },
   chipRow: {
     flexDirection: 'row',

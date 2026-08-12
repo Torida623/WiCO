@@ -81,10 +81,28 @@ export async function listRecipes(): Promise<SavedRecipe[]> {
 }
 
 /** 保存したレシピ tab: local recipes minus the ones already published, so a recipe only ever shows in
- * one of 保存したレシピ / 投稿したレシピ, never both. Other callers (e.g. the menu-chat recipe picker)
- * should keep using listRecipes() — this filter is specific to that tab's mutual-exclusivity rule. */
+ * one of 保存したレシピ / 投稿したレシピ, never both. Cross-checks unflagged recipes against this
+ * device's public posts (not just the local `published` flag) and backfills the flag when it finds a
+ * match — needed because `published` didn't exist yet when older recipes were posted, so those would
+ * otherwise show in both tabs forever. Other callers (e.g. the menu-chat recipe picker) should keep
+ * using listRecipes() — this filter is specific to that tab's mutual-exclusivity rule. */
 export async function listSavedRecipes(): Promise<SavedRecipe[]> {
-  return (await listRecipes()).filter((recipe) => !recipe.published);
+  let recipes = await listRecipes();
+  const unflagged = recipes.filter((recipe) => recipe.source === 'user' && !recipe.published);
+
+  if (unflagged.length > 0) {
+    const posted = await listMyPublicRecipes();
+    const postedKeys = new Set(posted.map((p) => `${p.title} ${p.bookContent}`));
+    const fixIds = new Set(
+      unflagged.filter((recipe) => postedKeys.has(`${recipe.title} ${recipe.bookContent}`)).map((r) => r.id),
+    );
+    if (fixIds.size > 0) {
+      recipes = recipes.map((recipe) => (fixIds.has(recipe.id) ? { ...recipe, published: true } : recipe));
+      await writeAll(recipes);
+    }
+  }
+
+  return recipes.filter((recipe) => !recipe.published);
 }
 
 export async function getRecipe(id: string): Promise<SavedRecipe | undefined> {
