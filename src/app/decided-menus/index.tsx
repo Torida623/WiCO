@@ -9,6 +9,7 @@ import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ENTRY_POINT_OPTIONS } from '@/constants/meal-flow';
+import { pickPerokokoLine } from '@/constants/perokoko-lines';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { DecidedMenu, listDecidedMenus } from '@/lib/decided-menus';
 
@@ -41,6 +42,7 @@ export default function DecidedMenusScreen() {
   const [menus, setMenus] = useState<DecidedMenu[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(0);
+  const [mascotLine, setMascotLine] = useState('');
 
   useFocusEffect(
     useCallback(() => {
@@ -52,6 +54,7 @@ export default function DecidedMenusScreen() {
           setPage(0);
         }
       });
+      setMascotLine(pickPerokokoLine());
       return () => {
         cancelled = true;
       };
@@ -138,6 +141,9 @@ export default function DecidedMenusScreen() {
         <View style={styles.footer} pointerEvents="none">
           <View style={styles.footerBubbleWrap}>
             <Image source={SPEECH_BUBBLE_IMAGE} style={styles.footerBubbleImage} contentFit="contain" />
+            <View style={styles.footerBubbleTextArea}>
+              <ThemedText style={styles.footerBubbleText}>{mascotLine}</ThemedText>
+            </View>
           </View>
           <Image source={MASCOT_IMAGE} style={styles.footerMascotImage} contentFit="contain" />
         </View>
@@ -221,6 +227,20 @@ const styles = StyleSheet.create({
   footerBubbleImage: {
     width: '100%',
     height: '100%',
+  },
+  footerBubbleTextArea: {
+    position: 'absolute',
+    left: '19%',
+    top: '24%',
+    width: '62%',
+    height: '48%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerBubbleText: {
+    fontSize: 13,
+    lineHeight: 17,
+    textAlign: 'center',
   },
   footerMascotImage: {
     width: 175,
