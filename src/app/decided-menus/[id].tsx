@@ -8,14 +8,16 @@ import { ScreenHeader } from '@/components/screen-header';
 import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Course, ENTRY_POINT_OPTIONS, seasoningLabel } from '@/constants/meal-flow';
+import { Course, seasoningLabel } from '@/constants/meal-flow';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { isDaytime } from '@/constants/time-of-day';
 import { useTheme } from '@/hooks/use-theme';
 import { fetchWithTimeout, getApiUrl } from '@/lib/api';
 import { DecidedDish, DecidedMenu, getDecidedMenu } from '@/lib/decided-menus';
 import { saveAiRecipe } from '@/lib/recipes';
 
-const BACKGROUND = require('@/assets/images/menu/decided-menus-detail-bg.jpg');
+const BACKGROUND_DAY = require('@/assets/images/menu/decided-menus-detail-bg.jpg');
+const BACKGROUND_NIGHT = require('@/assets/images/menu/decided-menus-detail-bg-night.jpg');
 
 const STEPS_MARKER = '【作り方】';
 const RECIPE_TAGS_FETCH_TIMEOUT_MS = 30_000;
@@ -109,6 +111,7 @@ export default function DecidedMenuDetailScreen() {
   const [checkedDishIndices, setCheckedDishIndices] = useState<Set<number>>(new Set());
   const [savedDishIndices, setSavedDishIndices] = useState<Set<number>>(new Set());
   const [isSavingDishes, setIsSavingDishes] = useState(false);
+  const [isDay] = useState(() => isDaytime());
 
   useEffect(() => {
     let cancelled = false;
@@ -167,13 +170,14 @@ export default function DecidedMenuDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <Image source={BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
+      <Image
+        source={isDay ? BACKGROUND_DAY : BACKGROUND_NIGHT}
+        style={styles.absoluteFill}
+        contentFit="cover"
+      />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader
-          title={menu ? ENTRY_POINT_OPTIONS.find((option) => option.value === menu.entryPoint)?.label : '献立'}
-          onBack={() => router.back()}
-        />
+        <ScreenHeader onBack={() => router.back()} />
 
         {isLoading && (
           <View style={styles.centered}>

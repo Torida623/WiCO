@@ -11,10 +11,13 @@ import { ThemedView } from '@/components/themed-view';
 import { ENTRY_POINT_OPTIONS } from '@/constants/meal-flow';
 import { pickPerokokoLine } from '@/constants/perokoko-lines';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { isDaytime } from '@/constants/time-of-day';
 import { DecidedMenu, listDecidedMenus } from '@/lib/decided-menus';
 
-const BACKGROUND = require('@/assets/images/menu/decided-menus-bg.jpg');
-const MASCOT_IMAGE = require('@/assets/images/mascot/perokoko-neutral.png');
+const BACKGROUND_DAY = require('@/assets/images/menu/decided-menus-bg.jpg');
+const BACKGROUND_NIGHT = require('@/assets/images/menu/decided-menus-bg-night.jpg');
+const MASCOT_IMAGE_DAY = require('@/assets/images/mascot/perokoko-neutral.png');
+const MASCOT_IMAGE_NIGHT = require('@/assets/images/mascot/perokoko-neutral-night.png');
 const SPEECH_BUBBLE_IMAGE = require('@/assets/images/meal-log/speech-bubble-cloud.png');
 const SPEECH_BUBBLE_ASPECT_RATIO = 1398 / 1125;
 const SHOPPING_MEMO_BUTTON_IMAGE = require('@/assets/images/menu/shopping-memo-button.png');
@@ -43,6 +46,7 @@ export default function DecidedMenusScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [mascotLine, setMascotLine] = useState('');
+  const [isDay, setIsDay] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -55,6 +59,7 @@ export default function DecidedMenusScreen() {
         }
       });
       setMascotLine(pickPerokokoLine());
+      setIsDay(isDaytime());
       return () => {
         cancelled = true;
       };
@@ -68,8 +73,12 @@ export default function DecidedMenusScreen() {
 
   return (
     <View style={styles.container}>
-      <Image source={BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
-      <ThemedView type="background" style={[styles.absoluteFill, { opacity: 0.3 }]} />
+      <Image
+        source={isDay ? BACKGROUND_DAY : BACKGROUND_NIGHT}
+        style={styles.absoluteFill}
+        contentFit="cover"
+      />
+      {isDay && <ThemedView type="background" style={[styles.absoluteFill, { opacity: 0.3 }]} />}
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScreenHeader onBack={() => router.back()} />
@@ -145,7 +154,11 @@ export default function DecidedMenusScreen() {
               <ThemedText style={styles.footerBubbleText}>{mascotLine}</ThemedText>
             </View>
           </View>
-          <Image source={MASCOT_IMAGE} style={styles.footerMascotImage} contentFit="contain" />
+          <Image
+            source={isDay ? MASCOT_IMAGE_DAY : MASCOT_IMAGE_NIGHT}
+            style={styles.footerMascotImage}
+            contentFit="contain"
+          />
         </View>
       </SafeAreaView>
     </View>
