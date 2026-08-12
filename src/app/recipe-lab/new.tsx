@@ -28,6 +28,7 @@ import {
   FORMAT_TAG_TINT,
   GENRE_TAG_OPTIONS,
   GENRE_TAG_TINT,
+  seasoningLabel,
   TASTE_TAG_OPTIONS,
   TASTE_TAG_TINT,
   TEMPERATURE_TAG_OPTIONS,
@@ -64,10 +65,6 @@ type SeasoningMode = 'combined' | 'sequential';
 type IngredientItem = { name: string; amount: string };
 /** `text` backs combined-mode free entry; `items` backs sequential-mode one-by-one entry. Both persist across mode toggles so switching back doesn't lose input. */
 type SeasoningGroup = { mode: SeasoningMode; text: string; items: IngredientItem[] };
-
-function seasoningLabel(index: number): string {
-  return String.fromCharCode(65 + index);
-}
 
 function formatIngredientsText(items: IngredientItem[]): string {
   return items.map((i) => `・${i.name} ${i.amount}`.trim()).join('\n');

@@ -46,6 +46,10 @@ export type NewAiRecipeInput = {
   title: string;
   bookContent: string;
   course?: Course;
+  genreTag?: string | null;
+  formatTag?: string | null;
+  tasteTag?: string | null;
+  temperatureTag?: string | null;
 };
 
 const STORAGE_KEY = 'wico:recipes';
@@ -169,6 +173,10 @@ export async function saveAiRecipe(input: NewAiRecipeInput): Promise<SavedRecipe
     bookContent: input.bookContent,
     savedAt: new Date().toISOString(),
     course: input.course,
+    genreTag: input.genreTag,
+    formatTag: input.formatTag,
+    tasteTag: input.tasteTag,
+    temperatureTag: input.temperatureTag,
   };
 
   const recipes = await readAll();

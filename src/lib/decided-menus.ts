@@ -4,10 +4,13 @@ import { Course, EntryPoint } from '@/constants/meal-flow';
 
 export type DecidedMenuIngredient = { name: string; amount: string };
 
+export type DecidedSeasoningGroup = { items: DecidedMenuIngredient[] };
+
 export type DecidedDish = {
   course: Course;
   title: string;
-  ingredients: DecidedMenuIngredient[];
+  basicIngredients: DecidedMenuIngredient[];
+  seasoningGroups: DecidedSeasoningGroup[];
   steps: string[];
 };
 
@@ -17,6 +20,7 @@ export type DecidedMenu = {
   proposalText: string;
   recipeText: string;
   dishes: DecidedDish[];
+  people?: string;
   decidedAt: string;
   expiresAt: string;
 };
@@ -26,6 +30,7 @@ export type NewDecidedMenuInput = {
   proposalText: string;
   recipeText: string;
   dishes: DecidedDish[];
+  people?: string;
 };
 
 const STORAGE_KEY = 'wico:decided-menus';
@@ -84,6 +89,7 @@ export async function saveDecidedMenu(input: NewDecidedMenuInput): Promise<Decid
     proposalText: input.proposalText,
     recipeText: input.recipeText,
     dishes: input.dishes,
+    people: input.people,
     decidedAt: decidedAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
   };
@@ -106,15 +112,18 @@ export async function listAggregatedIngredients(): Promise<AggregatedIngredient[
   const menus = await listDecidedMenus();
   const amountsByName = new Map<string, string[]>();
 
+  const addIngredient = ({ name, amount }: DecidedMenuIngredient) => {
+    const key = name.trim();
+    if (!key) return;
+    const amounts = amountsByName.get(key) ?? [];
+    if (amount && !amounts.includes(amount)) amounts.push(amount);
+    amountsByName.set(key, amounts);
+  };
+
   for (const menu of menus) {
     for (const dish of menu.dishes ?? []) {
-      for (const { name, amount } of dish.ingredients) {
-        const key = name.trim();
-        if (!key) continue;
-        const amounts = amountsByName.get(key) ?? [];
-        if (amount && !amounts.includes(amount)) amounts.push(amount);
-        amountsByName.set(key, amounts);
-      }
+      (dish.basicIngredients ?? []).forEach(addIngredient);
+      (dish.seasoningGroups ?? []).forEach((group) => group.items.forEach(addIngredient));
     }
   }
 

@@ -29,6 +29,12 @@ export type PinnedDish = {
   steps: string[];
 };
 
+/** Letters used to label 合わせ調味料 groups (調味料A, 調味料B, ...) — shared by the recipe-lab post
+ * form and the AI-generated menu recipes so both use the same convention. */
+export function seasoningLabel(index: number): string {
+  return String.fromCharCode(65 + index);
+}
+
 export type Answers = {
   entryPoint?: EntryPoint;
   people?: string;

@@ -358,6 +358,7 @@ export default function MealChatScreen() {
             proposalText: lastProposalRef.current,
             recipeText: content,
             dishes,
+            people: newAnswers.people,
           }).catch((error) => console.error('決定済み献立の保存に失敗:', error));
         }
         setMascotPose('idea');

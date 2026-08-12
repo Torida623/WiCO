@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 
-import { Answers, COURSE_OPTIONS, Course, ENTRY_POINT_OPTIONS, PinnedDish } from '@/constants/meal-flow';
+import { Answers, COURSE_OPTIONS, Course, ENTRY_POINT_OPTIONS, PinnedDish, seasoningLabel } from '@/constants/meal-flow';
 import { JAPANESE_CHAT_MODEL, createJapaneseChatCompletion } from '@/lib/openai-japanese';
 
 const PROPOSAL_SYSTEM_PROMPT = `あなたは家庭料理の献立を提案するアプリ「WiCO」のマスコット「ペロココ」です。
@@ -132,7 +132,7 @@ const REVISION_RESPONSE_SCHEMA = {
 const FINAL_SYSTEM_PROMPT = `あなたは家庭料理の献立を提案するアプリ「WiCO」のマスコット「ペロココ」です。
 直前に確定した献立について、品目（料理）ごとに材料と作り方を教えてください。
 
-確定した献立の「🍽️ 献立」に挙げられている品目（主菜またはメイン・副菜・汁物・主食のうち、実際に書かれているものだけ）ごとに1エントリを作ってください。品目名は献立に書かれた料理名をそのまま使ってください。「メイン」として挙げられていた品目も、courseは「主菜」にしてください。
+確定した献立の「🍽️ 献立」に挙げられている品目（主菜またはメイン・副菜・汁物・主食のうち、実際に書かれているものだけ）ごとに1エントリを作ってください。品目名は献立に書かれた料理名をそのまま使ってください。「メイン」として挙げられていた品目（丼・パスタ・ラーメン・カレー・チャーハンなど、ごはん・パン・麺そのものが主体の料理）は、courseを「主食」にしてください。ただし鍋物のように、ごはん・パン・麺が主体とは言えない料理は「主菜」にしてください。
 
 白ごはん・食パンのように、切る・炒める・煮るといった調理を一切伴わない主食（盛り付けるだけのもの）は、dishesにエントリを作らないでください。それ以外の品目だけ生成してください。
 
@@ -142,20 +142,34 @@ const FINAL_SYSTEM_PROMPT = `あなたは家庭料理の献立を提案するア
 
 ユーザーの文脈に「アレルギー」が含まれる場合、それは絶対に守るべき安全上の制約です。材料・作り方のどこにも、該当食材そのものや、それを原材料として含む調味料・加工食品（例: 卵アレルギーならマヨネーズやつなぎの卵、乳アレルギーならバターやチーズ、小麦アレルギーなら醤油やパン粉など）を含めないでください。もし通常のレシピにそれらが使われる場合は、安全な代替品に置き換えてください。
 
-主食のご飯の量など、厳密でなくてよい分量は「適量」としてください。このアプリはカロリー管理アプリではないため、すべての分量を厳密なグラム数で示す必要はありません。
+ご飯の量は、単品の主食としてでも、丼・チャーハン・カレーのように他の品目の一部としてでも、「適量」としてください（「150g」「茶碗1杯分」のような厳密な分量にしないでください）。ご飯に限らず、厳密でなくてよい分量は「適量」としてください。このアプリはカロリー管理アプリではないため、すべての分量を厳密なグラム数で示す必要はありません。
+
+材料は、個別に加えるもの（basicIngredients）と、合わせ調味料としてまとめて加えるもの（seasoningGroups）に分けてください。醤油・みりん・酒・砂糖などの調味料を2つ以上あらかじめ混ぜ合わせて同じタイミングで加える場合は、その調味料をseasoningGroupsの1グループにまとめてください。1つだけの調味料や、他の材料と別のタイミングで個別に加えるものはbasicIngredientsに入れてください。まとめる調味料がなければseasoningGroupsは空配列にしてください。
 
 指定されたJSON形式で応答してください。
 ・dishes: 品目ごとの配列。
   - course: 「主食」「主菜」「副菜」「汁物」のいずれか
   - title: 料理名
-  - ingredients: 材料の配列。nameには材料名のみ、amountには指定された人数分の分量（単位を含む）を入れてください。
-  - steps: 作り方の配列。1手順につき1つの文字列にしてください。`;
+  - basicIngredients: 個別に加える材料の配列。nameには材料名のみ、amountには指定された人数分の分量（単位を含む）を入れてください。
+  - seasoningGroups: 合わせ調味料グループの配列（登場順）。各要素はitems（材料の配列、形式はbasicIngredientsと同じ）を持ちます。
+  - steps: 作り方の配列。1手順につき1つの文字列にしてください。seasoningGroupsでまとめた調味料は、「調味料Aを加える」のようにグループ単位でまとめて参照してもかまいません（1番目のグループがA、2番目がB、というように登場順で呼んでください）。`;
+
+type FinalDishIngredient = { name: string; amount: string };
+type FinalSeasoningGroup = { items: FinalDishIngredient[] };
 
 type FinalDish = {
   course: Course;
   title: string;
-  ingredients: { name: string; amount: string }[];
+  basicIngredients: FinalDishIngredient[];
+  seasoningGroups: FinalSeasoningGroup[];
   steps: string[];
+};
+
+const INGREDIENT_ITEM_SCHEMA = {
+  type: 'object' as const,
+  properties: { name: { type: 'string' as const }, amount: { type: 'string' as const } },
+  required: ['name', 'amount'],
+  additionalProperties: false,
 };
 
 const FINAL_RESPONSE_SCHEMA = {
@@ -168,18 +182,19 @@ const FINAL_RESPONSE_SCHEMA = {
         properties: {
           course: { type: 'string' as const, enum: ['主食', '主菜', '副菜', '汁物'] },
           title: { type: 'string' as const },
-          ingredients: {
+          basicIngredients: { type: 'array' as const, items: INGREDIENT_ITEM_SCHEMA },
+          seasoningGroups: {
             type: 'array' as const,
             items: {
               type: 'object' as const,
-              properties: { name: { type: 'string' }, amount: { type: 'string' } },
-              required: ['name', 'amount'],
+              properties: { items: { type: 'array' as const, items: INGREDIENT_ITEM_SCHEMA } },
+              required: ['items'],
               additionalProperties: false,
             },
           },
           steps: { type: 'array' as const, items: { type: 'string' } },
         },
-        required: ['course', 'title', 'ingredients', 'steps'],
+        required: ['course', 'title', 'basicIngredients', 'seasoningGroups', 'steps'],
         additionalProperties: false,
       },
     },
@@ -193,11 +208,17 @@ function sortByCourseOrder(dishes: FinalDish[]): FinalDish[] {
   return [...dishes].sort((a, b) => order.indexOf(a.course) - order.indexOf(b.course));
 }
 
-function buildFinalText(dishes: FinalDish[], plainStaple?: string): string {
+function buildFinalText(dishes: FinalDish[], plainStaple?: string, people?: string): string {
+  const servingsLabel = people ? `(${people}人分)` : '(指定された人数分)';
   const lines = ['献立が決まりました！'];
   for (const dish of dishes) {
-    lines.push('', `◆ ${dish.course}：${dish.title}`, '', '【材料】(指定された人数分)');
-    dish.ingredients.forEach((i) => lines.push(`・${i.name} ${i.amount}`));
+    lines.push('', `◆ ${dish.course}：${dish.title}`, '', `【材料】${servingsLabel}`);
+    dish.basicIngredients.forEach((i) => lines.push(`・${i.name} ${i.amount}`));
+    dish.seasoningGroups.forEach((group, index) => {
+      if (!group.items.length) return;
+      lines.push('', `〈調味料${seasoningLabel(index)}・合わせ調味料〉`);
+      group.items.forEach((i) => lines.push(`・${i.name} ${i.amount}`));
+    });
     lines.push('', '【作り方】');
     dish.steps.forEach((s, idx) => lines.push(`${idx + 1}. ${s}`));
   }
@@ -327,13 +348,20 @@ export async function POST(request: Request) {
     let dishes: FinalDish[] = parsed.dishes ?? [];
     if (answers.pinnedRecipe) {
       const pinned = answers.pinnedRecipe;
-      dishes = [...dishes.filter((dish) => dish.course !== pinned.course), pinned];
+      const pinnedAsFinalDish: FinalDish = {
+        course: pinned.course,
+        title: pinned.title,
+        basicIngredients: pinned.ingredients,
+        seasoningGroups: [],
+        steps: pinned.steps,
+      };
+      dishes = [...dishes.filter((dish) => dish.course !== pinned.course), pinnedAsFinalDish];
     }
     const orderedDishes = sortByCourseOrder(dishes);
     const plainStaple = orderedDishes.some((dish) => dish.course === '主食')
       ? undefined
       : parseMenuFields(proposalText).staple;
-    const text = buildFinalText(orderedDishes, plainStaple);
+    const text = buildFinalText(orderedDishes, plainStaple, answers.people);
     return Response.json({ message: text, dishes: orderedDishes });
   } catch (error) {
     console.error(error);
