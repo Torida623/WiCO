@@ -16,6 +16,13 @@ const BACKGROUND = require('@/assets/images/menu/decided-menus-bg.jpg');
 const MASCOT_IMAGE = require('@/assets/images/mascot/perokoko-neutral.png');
 const SPEECH_BUBBLE_IMAGE = require('@/assets/images/meal-log/speech-bubble-cloud.png');
 const SPEECH_BUBBLE_ASPECT_RATIO = 1398 / 1125;
+const SHOPPING_MEMO_BUTTON_IMAGE = require('@/assets/images/menu/shopping-memo-button.png');
+const SHOPPING_MEMO_BUTTON_ASPECT_RATIO = 1477 / 171;
+const PREV_BUTTON_IMAGE = require('@/assets/images/menu/decided-menus-prev-button.png');
+const PREV_BUTTON_ASPECT_RATIO = 505 / 237;
+const NEXT_BUTTON_IMAGE = require('@/assets/images/menu/decided-menus-next-button.png');
+const NEXT_BUTTON_ASPECT_RATIO = 520 / 236;
+const ITEM_FRAME_IMAGE = require('@/assets/images/menu/decided-menus-item-frame.png');
 const PAGE_SIZE = 3;
 
 const MAIN_DISH_MAX_LENGTH = 18;
@@ -67,9 +74,11 @@ export default function DecidedMenusScreen() {
         <View style={styles.shoppingMemoRow}>
           <Pressable onPress={() => router.push('/shopping-memo' as Href)}>
             {({ pressed }) => (
-              <ThemedView type="backgroundElement" style={[styles.shoppingMemoButton, pressed && styles.pressed]}>
-                <ThemedText type="smallBold">お買い物メモ</ThemedText>
-              </ThemedView>
+              <Image
+                source={SHOPPING_MEMO_BUTTON_IMAGE}
+                style={[styles.shoppingMemoButton, pressed && styles.pressed]}
+                contentFit="contain"
+              />
             )}
           </Pressable>
         </View>
@@ -86,7 +95,8 @@ export default function DecidedMenusScreen() {
           {visibleMenus.map((item) => (
             <Pressable key={item.id} onPress={() => router.push(`/decided-menus/${item.id}` as Href)}>
               {({ pressed }) => (
-                <ThemedView type="backgroundElement" style={[styles.row, pressed && styles.pressed]}>
+                <View style={[styles.row, pressed && styles.pressed]}>
+                  <Image source={ITEM_FRAME_IMAGE} style={styles.absoluteFill} contentFit="fill" />
                   <View style={styles.rowHeader}>
                     <ThemedText type="small" themeColor="textSecondary">
                       {ENTRY_POINT_OPTIONS.find((option) => option.value === item.entryPoint)?.label}
@@ -96,7 +106,7 @@ export default function DecidedMenusScreen() {
                     </ThemedText>
                   </View>
                   <ThemedText type="smallBold">{extractMainDish(item.proposalText)}</ThemedText>
-                </ThemedView>
+                </View>
               )}
             </Pressable>
           ))}
@@ -105,24 +115,20 @@ export default function DecidedMenusScreen() {
             <View style={styles.pageRow}>
               <Pressable onPress={() => setPage((current) => current - 1)} disabled={!hasPrevPage}>
                 {({ pressed }) => (
-                  <ThemedView
-                    type="backgroundElement"
-                    style={[styles.pageButton, pressed && styles.pressed, !hasPrevPage && styles.pageButtonDisabled]}>
-                    <ThemedText type="smallBold" themeColor={hasPrevPage ? 'text' : 'textSecondary'}>
-                      前へ
-                    </ThemedText>
-                  </ThemedView>
+                  <Image
+                    source={PREV_BUTTON_IMAGE}
+                    style={[styles.pageButton, pressed && styles.pressed, !hasPrevPage && styles.pageButtonDisabled]}
+                    contentFit="contain"
+                  />
                 )}
               </Pressable>
               <Pressable onPress={() => setPage((current) => current + 1)} disabled={!hasNextPage}>
                 {({ pressed }) => (
-                  <ThemedView
-                    type="backgroundElement"
-                    style={[styles.pageButton, pressed && styles.pressed, !hasNextPage && styles.pageButtonDisabled]}>
-                    <ThemedText type="smallBold" themeColor={hasNextPage ? 'text' : 'textSecondary'}>
-                      次へ
-                    </ThemedText>
-                  </ThemedView>
+                  <Image
+                    source={NEXT_BUTTON_IMAGE}
+                    style={[styles.pageButton, pressed && styles.pressed, !hasNextPage && styles.pageButtonDisabled]}
+                    contentFit="contain"
+                  />
                 )}
               </Pressable>
             </View>
@@ -157,9 +163,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
   },
   shoppingMemoButton: {
-    alignItems: 'center',
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.three,
+    width: '100%',
+    aspectRatio: SHOPPING_MEMO_BUTTON_ASPECT_RATIO,
   },
   emptyState: {
     flex: 1,
@@ -178,16 +183,13 @@ const styles = StyleSheet.create({
     marginTop: Spacing.two,
   },
   pageButton: {
-    alignItems: 'center',
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.four,
-    borderRadius: Spacing.three,
+    width: 80,
+    aspectRatio: PREV_BUTTON_ASPECT_RATIO,
   },
   pageButtonDisabled: {
     opacity: 0.4,
   },
   row: {
-    borderRadius: Spacing.three,
     padding: Spacing.three,
     gap: Spacing.one,
     marginBottom: Spacing.two,

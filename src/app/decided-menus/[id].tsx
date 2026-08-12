@@ -1,9 +1,9 @@
+import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { RecipeBook } from '@/components/chat/recipe-book';
 import { ScreenHeader } from '@/components/screen-header';
 import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
@@ -13,9 +13,22 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { DecidedDish, DecidedMenu, getDecidedMenu } from '@/lib/decided-menus';
 import { saveAiRecipe } from '@/lib/recipes';
 
+const BACKGROUND = require('@/assets/images/menu/decided-menus-detail-bg.jpg');
+
+const STEPS_MARKER = '【作り方】';
+
 function extractBookContent(text: string): string {
   const splitIndex = text.indexOf('【材料】');
   return splitIndex >= 0 ? text.slice(splitIndex) : text;
+}
+
+function splitBookContent(content: string): { ingredientsText: string; stepsText: string } {
+  const stepsIndex = content.indexOf(STEPS_MARKER);
+  if (stepsIndex < 0) return { ingredientsText: content.replace('【材料】', '').trim(), stepsText: '' };
+  return {
+    ingredientsText: content.slice(0, stepsIndex).replace('【材料】', '').trim(),
+    stepsText: content.slice(stepsIndex + STEPS_MARKER.length).trim(),
+  };
 }
 
 function extractMainDish(proposalText: string): string {
@@ -66,8 +79,13 @@ export default function DecidedMenuDetailScreen() {
     setSavedDishIndices((current) => new Set(current).add(index));
   }
 
+  const { ingredientsText, stepsText } = menu
+    ? splitBookContent(extractBookContent(menu.recipeText))
+    : { ingredientsText: '', stepsText: '' };
+
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
+      <Image source={BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScreenHeader
@@ -90,10 +108,28 @@ export default function DecidedMenuDetailScreen() {
         )}
 
         {menu && (
-          <>
-            <View style={styles.bookArea}>
-              <RecipeBook content={extractBookContent(menu.recipeText)} onRestart={() => router.push('/menu-chat')} />
-            </View>
+          <ScrollView contentContainerStyle={styles.content}>
+            <ThemedView type="background" style={styles.formCard}>
+              <ThemedText type="title">{extractMainDish(menu.proposalText)}</ThemedText>
+            </ThemedView>
+
+            {ingredientsText && (
+              <ThemedView type="background" style={styles.formCard}>
+                <ThemedText type="smallBold" style={styles.heading}>
+                  材料
+                </ThemedText>
+                <ThemedText style={styles.bodyText}>{ingredientsText}</ThemedText>
+              </ThemedView>
+            )}
+            {stepsText && (
+              <ThemedView type="background" style={styles.formCard}>
+                <ThemedText type="smallBold" style={styles.heading}>
+                  作り方
+                </ThemedText>
+                <ThemedText style={styles.bodyText}>{stepsText}</ThemedText>
+              </ThemedView>
+            )}
+
             {menu.dishes && menu.dishes.length > 0 ? (
               <View style={styles.saveList}>
                 {menu.dishes.map((dish, index) => (
@@ -122,16 +158,19 @@ export default function DecidedMenuDetailScreen() {
                 )}
               </Pressable>
             )}
-          </>
+          </ScrollView>
         )}
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  absoluteFill: {
+    ...StyleSheet.absoluteFillObject,
   },
   safeArea: {
     flex: 1,
@@ -144,12 +183,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bookArea: {
-    flex: 1,
+  content: {
+    padding: Spacing.three,
+    gap: Spacing.three,
+  },
+  formCard: {
+    borderRadius: Spacing.four,
+    padding: Spacing.three,
+    gap: Spacing.two,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  heading: {
+    fontSize: 15,
+  },
+  bodyText: {
+    fontSize: 14,
+    lineHeight: 22,
   },
   saveList: {
     gap: Spacing.one,
-    paddingVertical: Spacing.two,
   },
   saveToLabRow: {
     alignItems: 'center',

@@ -134,11 +134,15 @@ const FINAL_SYSTEM_PROMPT = `あなたは家庭料理の献立を提案するア
 
 確定した献立の「🍽️ 献立」に挙げられている品目（主菜またはメイン・副菜・汁物・主食のうち、実際に書かれているものだけ）ごとに1エントリを作ってください。品目名は献立に書かれた料理名をそのまま使ってください。「メイン」として挙げられていた品目も、courseは「主菜」にしてください。
 
+白ごはん・食パンのように、切る・炒める・煮るといった調理を一切伴わない主食（盛り付けるだけのもの）は、dishesにエントリを作らないでください。それ以外の品目だけ生成してください。
+
 ユーザーの文脈に「献立には既に〜を使うことが決まっている」と書かれている場合、その品目についてはdishesにエントリを作らないでください。それ以外の品目だけ生成してください。
 
 ペロココの話し言葉ではなく、実際のレシピ本に書かれているような文体にしてください。「〜だよ」「〜してね」のような話しかける言い方や、「です」「ます」などの敬語は使わず、「〜を切る。」「〜を加えて炒める。」のように動詞の言い切り（辞書形）で簡潔に書いてください。
 
 ユーザーの文脈に「アレルギー」が含まれる場合、それは絶対に守るべき安全上の制約です。材料・作り方のどこにも、該当食材そのものや、それを原材料として含む調味料・加工食品（例: 卵アレルギーならマヨネーズやつなぎの卵、乳アレルギーならバターやチーズ、小麦アレルギーなら醤油やパン粉など）を含めないでください。もし通常のレシピにそれらが使われる場合は、安全な代替品に置き換えてください。
+
+主食のご飯の量など、厳密でなくてよい分量は「適量」としてください。このアプリはカロリー管理アプリではないため、すべての分量を厳密なグラム数で示す必要はありません。
 
 指定されたJSON形式で応答してください。
 ・dishes: 品目ごとの配列。
@@ -189,7 +193,7 @@ function sortByCourseOrder(dishes: FinalDish[]): FinalDish[] {
   return [...dishes].sort((a, b) => order.indexOf(a.course) - order.indexOf(b.course));
 }
 
-function buildFinalText(dishes: FinalDish[]): string {
+function buildFinalText(dishes: FinalDish[], plainStaple?: string): string {
   const lines = ['献立が決まりました！'];
   for (const dish of dishes) {
     lines.push('', `◆ ${dish.course}：${dish.title}`, '', '【材料】(指定された人数分)');
@@ -197,6 +201,7 @@ function buildFinalText(dishes: FinalDish[]): string {
     lines.push('', '【作り方】');
     dish.steps.forEach((s, idx) => lines.push(`${idx + 1}. ${s}`));
   }
+  if (plainStaple) lines.push('', `◆ 主食：${plainStaple}`);
   return lines.join('\n');
 }
 
@@ -325,7 +330,10 @@ export async function POST(request: Request) {
       dishes = [...dishes.filter((dish) => dish.course !== pinned.course), pinned];
     }
     const orderedDishes = sortByCourseOrder(dishes);
-    const text = buildFinalText(orderedDishes);
+    const plainStaple = orderedDishes.some((dish) => dish.course === '主食')
+      ? undefined
+      : parseMenuFields(proposalText).staple;
+    const text = buildFinalText(orderedDishes, plainStaple);
     return Response.json({ message: text, dishes: orderedDishes });
   } catch (error) {
     console.error(error);
