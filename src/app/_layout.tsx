@@ -23,17 +23,19 @@ const TITLE_BGM_VOLUME = 0.4;
 const DAY_BGM = { source: require('@/assets/audio/title-bgm.mp3'), fadeStartMs: 75_000, fadeInMs: 600 }; // 1:17 track
 const NIGHT_BGM = { source: require('@/assets/audio/night-bgm.mp3'), fadeStartMs: 115_000, fadeInMs: 0 }; // 1:57 track
 
-// Shared by 献立ノート(decided-menus) and お買い物メモ(shopping-memo) — both tracks run ~6:06.
+// Shared by 献立ノート(decided-menus) and お買い物メモ(shopping-memo). The mp3-header script used to
+// measure these initially had an offset bug that missed each track's VBR (Xing) header and fell
+// back to a much-too-long CBR estimate (reported ~6:06 for both) — actual runtime is ~2:02/~2:08.
 const NOTEBOOK_BGM_VOLUME = 0.4;
 const NOTEBOOK_DAY_BGM = {
   source: require('@/assets/audio/notebook-bgm-day.mp3'),
-  fadeStartMs: 363_900,
+  fadeStartMs: 120_380,
   fadeInMs: 600,
   startDelayMs: 0,
-}; // 6:06 track
+}; // 2:02 track
 const NOTEBOOK_NIGHT_BGM = {
   source: require('@/assets/audio/notebook-bgm-night.mp3'),
-  fadeStartMs: 363_800,
+  fadeStartMs: 126_280,
   fadeInMs: 600,
   // Night 献立ノート specifically: let the screen's own entrance settle for a beat before the BGM
   // kicks in, instead of starting the instant the screen mounts.
@@ -57,10 +59,11 @@ const BUDGET_BGM_VOLUME = 0.4;
 const BUDGET_BGM_FADE_START_MS = 63_000;
 const BUDGET_BGM_FADE_IN_MS = 600;
 
-// 1:28 track
-const RECIPE_LAB_BGM = require('@/assets/audio/recipe-lab-bgm.mp3');
+// 1:54 track (ひらめきキッチン) — first measured at 5:36 with a buggy duration script that missed
+// this track's VBR header and fell back to a bad CBR estimate; actual runtime is 1:53.7.
+const RECIPE_LAB_BGM = require('@/assets/audio/recipe-lab-bgm-v2.mp3');
 const RECIPE_LAB_BGM_VOLUME = 0.4;
-const RECIPE_LAB_BGM_FADE_START_MS = 86_300;
+const RECIPE_LAB_BGM_FADE_START_MS = 111_740;
 const RECIPE_LAB_BGM_FADE_IN_MS = 600;
 
 type Stage = 'entrance' | 'menu' | 'app';
