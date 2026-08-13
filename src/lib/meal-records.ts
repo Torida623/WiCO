@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Directory, File, Paths } from 'expo-file-system';
 
+import { LinkedRecipeSnapshot } from '@/lib/recipes';
+
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
 // 三色食品群: energy = 黄(エネルギーになる食品), protein = 赤(血や肉をつくる食品),
@@ -24,6 +26,13 @@ export type MealRecord = {
   nutritionBalance?: NutritionBalance;
   favorite: boolean;
   createdAt: string;
+  /** 参考にしたレシピ — recipe content snapshotted from the decided menu this meal was cooked from
+   * (if any), so it survives the menu's own 48h expiry. Empty when the meal wasn't recorded from a
+   * decided menu (e.g. eating out, a quick photo with no dish plan behind it). */
+  linkedRecipes?: LinkedRecipeSnapshot[];
+  /** Titles from linkedRecipes that have already been sent to レシピ研究所 — lets the save checklist
+   * on the memory's detail page remember its state across visits instead of resetting every time. */
+  savedRecipeTitles?: string[];
 };
 
 export type NewMealRecordInput = {
@@ -34,6 +43,7 @@ export type NewMealRecordInput = {
   memo?: string;
   nutritionBalance?: NutritionBalance;
   favorite?: boolean;
+  linkedRecipes?: LinkedRecipeSnapshot[];
 };
 
 export type MealRecordPatch = Partial<Omit<MealRecord, 'id' | 'createdAt'>>;
@@ -222,6 +232,7 @@ export async function saveMealRecord(input: NewMealRecordInput): Promise<MealRec
     nutritionBalance: input.nutritionBalance,
     favorite: input.favorite ?? false,
     createdAt: new Date().toISOString(),
+    linkedRecipes: input.linkedRecipes,
   };
 
   const records = await readAll();

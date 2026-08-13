@@ -1,7 +1,9 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { Image } from 'expo-image';
+import { Image, ImageSource } from 'expo-image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  DimensionValue,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -28,6 +30,7 @@ import { ThemedView } from '@/components/themed-view';
 import {
   Answers,
   COOKING_TIME_OPTIONS,
+  Course,
   ENTRY_POINT_OPTIONS,
   EntryPoint,
   FORMAT_TAG_OPTIONS,
@@ -38,6 +41,7 @@ import {
   TASTE_TAG_OPTIONS,
   TEMPERATURE_TAG_OPTIONS,
   getNextStep,
+  seasoningLabel,
 } from '@/constants/meal-flow';
 import { ALLERGENS } from '@/constants/allergens';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -61,8 +65,19 @@ const ROOM_BACKGROUND_NIGHT_NO_BOOK = require('@/assets/images/perokoko-room-bg-
 const FRIDGE_SCAN_BACKGROUND = require('@/assets/images/ui/fridge-scan-bg.jpg');
 
 const OK_BUTTON_IMAGE = require('@/assets/images/ui/ok-button.png');
+const BACK_BUTTON_IMAGE = require('@/assets/images/ui/back-button.png');
 const MENU_DECIDED_PLATE_IMAGE = require('@/assets/images/ui/menu-decided-plate.png');
-const OK_BUTTON_SIZE = 72;
+const BACK_BUTTON_HEIGHT = 72;
+const BACK_BUTTON_ASPECT_RATIO = 1166 / 751;
+const OK_BUTTON_ASPECT_RATIO = 1359 / 946;
+
+const PEOPLE_INPUT_FRAME_IMAGE = require('@/assets/images/ui/people-input-frame.png');
+const PEOPLE_INPUT_FRAME_ASPECT_RATIO = 1846 / 286;
+// The art already draws the "人数を教えてね！" placeholder text, so this patch only needs to appear
+// once the field is focused or has real text, to keep that art from showing through the cursor/typed
+// input — otherwise the frame is untouched original art.
+const PEOPLE_INPUT_TEXT_PATCH_FILL_COLOR = 'rgb(254, 250, 240)';
+const PEOPLE_INPUT_TEXT_BOX = { top: '14%', left: '8%', width: '84%', height: '73%' } as const;
 
 const MENU_FETCH_TIMEOUT_MS = 30_000;
 
@@ -92,6 +107,65 @@ async function fetchMenuMessage(
 function extractBookContent(text: string): string {
   const splitIndex = text.indexOf('【材料】');
   return splitIndex >= 0 ? text.slice(splitIndex) : text;
+}
+
+const COURSE_ORDER: Course[] = ['主菜', '主食', '副菜', '汁物'];
+
+function sortDishesByCourse(dishes: DecidedDish[]): DecidedDish[] {
+  return [...dishes].sort((a, b) => COURSE_ORDER.indexOf(a.course) - COURSE_ORDER.indexOf(b.course));
+}
+
+/** The AI (or a re-parsed pinned recipe) sometimes echoes the ingredient name back into `amount`
+ * (e.g. name "クリームコーン缶" + amount "クリームコーン缶 1/2缶"), which would otherwise render as
+ * "クリームコーン缶 クリームコーン缶 1/2缶". Strip that duplicate before display. */
+function formatIngredientLine(name: string, amount: string): string {
+  const trimmedName = name.trim();
+  const trimmedAmount = amount.trim();
+  const dedupedAmount =
+    trimmedAmount.startsWith(trimmedName) && trimmedAmount.length > trimmedName.length
+      ? trimmedAmount.slice(trimmedName.length).trim()
+      : trimmedAmount;
+  return `・${trimmedName} ${dedupedAmount}`;
+}
+
+function buildDishIngredientsText(dish: DecidedDish): string {
+  const blocks: string[] = [];
+  const basicIngredients = dish.basicIngredients ?? [];
+  const seasoningGroups = dish.seasoningGroups ?? [];
+  if (basicIngredients.length) {
+    blocks.push(basicIngredients.map((i) => formatIngredientLine(i.name, i.amount)).join('\n'));
+  }
+  seasoningGroups.forEach((group, index) => {
+    if (!group.items.length) return;
+    blocks.push(
+      `〈調味料${seasoningLabel(index)}・合わせ調味料〉\n${group.items.map((i) => formatIngredientLine(i.name, i.amount)).join('\n')}`,
+    );
+  });
+  return blocks.join('\n\n');
+}
+
+/** Mirrors decided-menus/[id].tsx's card layout (献立ノート): all dish names, then all dishes'
+ * ingredients, then all dishes' steps — rather than repeating 【材料】/【作り方】 per dish. */
+function buildStructuredBookContent(dishes: DecidedDish[], people?: string): string {
+  const servingsLabel = people ? `(${people}人分)` : '(指定された人数分)';
+  const ordered = sortDishesByCourse(dishes);
+  const lines = ['【献立】'];
+  ordered.forEach((dish) => lines.push(`○ ${dish.course}：${dish.title}`));
+
+  lines.push('', `【材料】${servingsLabel}`);
+  ordered.forEach((dish, index) => {
+    if (index > 0) lines.push('');
+    lines.push(`◆${dish.course}：${dish.title}`, buildDishIngredientsText(dish));
+  });
+
+  lines.push('', '【作り方】');
+  ordered.forEach((dish, index) => {
+    if (index > 0) lines.push('');
+    lines.push(`◆${dish.course}：${dish.title}`);
+    dish.steps.forEach((s, idx) => lines.push(`${idx + 1}. ${s}`));
+  });
+
+  return lines.join('\n');
 }
 
 /** Best-effort split of a bookContent string (【材料】/【作り方】format) into structured ingredients/steps, used when pinning a saved recipe into the menu chat. */
@@ -196,6 +270,10 @@ export default function MealChatScreen() {
   const [pinnedDish, setPinnedDish] = useState<PinnedDish | null>(null);
   const [showRecipePicker, setShowRecipePicker] = useState(false);
   const [savedRecipesForPicker, setSavedRecipesForPicker] = useState<SavedRecipe[]>([]);
+  // Kept mounted (fading out on top of the book) after `currentMessage` has already moved on to
+  // 'book', so the plate's fade and the background's book-prop crossfade run at the same time
+  // instead of one waiting for the other to finish first.
+  const [showPlateOverlay, setShowPlateOverlay] = useState(false);
   const lastProposalRef = useRef('');
   const finalDetailsRef = useRef<{
     proposal: string;
@@ -204,6 +282,7 @@ export default function MealChatScreen() {
   } | null>(null);
   const messageIdRef = useRef(1);
   const mascotOpacity = useSharedValue(1);
+  const plateOpacity = useSharedValue(1);
   const daytime = useRef(isDaytime()).current;
 
   useEffect(() => {
@@ -260,6 +339,7 @@ export default function MealChatScreen() {
   }, [currentMessage.kind, mascotOpacity]);
 
   const mascotStyle = useAnimatedStyle(() => ({ opacity: mascotOpacity.value }));
+  const plateStyle = useAnimatedStyle(() => ({ opacity: plateOpacity.value }));
 
   function nextMessageId() {
     messageIdRef.current += 1;
@@ -276,6 +356,7 @@ export default function MealChatScreen() {
   }
 
   function showPlateMessage() {
+    plateOpacity.value = 1;
     setCurrentMessage({ id: nextMessageId(), kind: 'plate' });
   }
 
@@ -301,8 +382,9 @@ export default function MealChatScreen() {
   async function handlePreviewRecipe() {
     setIsTyping(true);
     try {
-      const { content } = await getFinalDetails(answers);
-      showMessage('ai', extractBookContent(content));
+      const { content, dishes } = await getFinalDetails(answers);
+      const previewText = dishes.length ? buildStructuredBookContent(dishes, answers.people) : extractBookContent(content);
+      showMessage('ai', previewText);
       setShowingRecipeDetail(true);
     } catch (error) {
       console.error(error);
@@ -351,7 +433,7 @@ export default function MealChatScreen() {
       if (next === 'final') {
         setMascotPose('thinking');
         const { content, dishes } = await getFinalDetails(newAnswers);
-        const bookContent = extractBookContent(content);
+        const bookContent = dishes.length ? buildStructuredBookContent(dishes, newAnswers.people) : extractBookContent(content);
         if (newAnswers.entryPoint) {
           saveDecidedMenu({
             entryPoint: newAnswers.entryPoint,
@@ -364,7 +446,16 @@ export default function MealChatScreen() {
         setMascotPose('idea');
         await new Promise((resolve) => setTimeout(resolve, 1500));
         showPlateMessage();
-        setTimeout(() => showBookMessage(bookContent), 2000);
+        const PLATE_FADE_DURATION_MS = 400;
+        setTimeout(() => {
+          // Start the plate's fade-out, the background's book-prop crossfade (triggered by
+          // showBookMessage flipping currentMessage.kind), and the book content reveal all at once,
+          // keeping the plate mounted as a fading overlay until its animation finishes.
+          setShowPlateOverlay(true);
+          plateOpacity.value = withTiming(0, { duration: PLATE_FADE_DURATION_MS });
+          showBookMessage(bookContent);
+          setTimeout(() => setShowPlateOverlay(false), PLATE_FADE_DURATION_MS);
+        }, 2000 - PLATE_FADE_DURATION_MS);
         return;
       }
 
@@ -514,6 +605,7 @@ export default function MealChatScreen() {
     setShowingRecipeDetail(false);
     setPinnedDish(null);
     setShowRecipePicker(false);
+    setShowPlateOverlay(false);
     lastProposalRef.current = '';
     finalDetailsRef.current = null;
   }
@@ -553,9 +645,9 @@ export default function MealChatScreen() {
                 <ChatBubble sender="ai" text="…" variant="blob" />
               </ScrollView>
             ) : currentMessage.kind === 'plate' ? (
-              <View style={styles.plateContent}>
+              <Animated.View style={[styles.plateContent, plateStyle]}>
                 <Image source={MENU_DECIDED_PLATE_IMAGE} style={styles.plateImage} contentFit="contain" />
-              </View>
+              </Animated.View>
             ) : currentMessage.kind === 'book' ? (
               <View style={styles.messageContent}>
                 <RecipeBook content={currentMessage.bookContent} onRestart={handleRestart} />
@@ -567,6 +659,12 @@ export default function MealChatScreen() {
                 <ChatBubble sender={currentMessage.sender} text={currentMessage.text} style={styles.dialogueOffset} />
               </ScrollView>
             )}
+
+            {showPlateOverlay && (
+              <Animated.View style={[styles.plateContent, styles.plateOverlay, plateStyle]} pointerEvents="none">
+                <Image source={MENU_DECIDED_PLATE_IMAGE} style={styles.plateImage} contentFit="contain" />
+              </Animated.View>
+            )}
           </View>
 
           {currentMessage.kind !== 'plate' && currentMessage.kind !== 'fridgeScan' && (
@@ -574,13 +672,30 @@ export default function MealChatScreen() {
             style={[styles.inputArea, isTyping && styles.inputAreaDisabled]}
             pointerEvents={isTyping ? 'none' : 'auto'}>
             {step === 'entryPoint' && (
-              <ChoiceButtons
-                options={ENTRY_POINT_OPTIONS}
-                onSelect={(value) => {
-                  const label = ENTRY_POINT_OPTIONS.find((o) => o.value === value)!.label;
-                  handleChoice('entryPoint', value, label);
-                }}
-              />
+              <View style={styles.entryPointGrid}>
+                {[
+                  ['breakfast', 'lunch'],
+                  ['dinner'],
+                  ['aiRecommend', 'fridge'],
+                ].map((row) => (
+                  // Two-item rows use a fixed-width column per item (instead of one row centered as
+                  // a whole) so breakfast/aiRecommend and lunch/fridge line up in straight columns —
+                  // centering the row as a whole wouldn't, since the two rows' total widths differ.
+                  <View key={row.join('-')} style={row.length > 1 && styles.entryPointColumnRow}>
+                    {row.map((value) => (
+                      <View key={value} style={row.length > 1 && styles.entryPointColumn}>
+                        <ChoiceButtons
+                          options={ENTRY_POINT_OPTIONS.filter((o) => o.value === value)}
+                          onSelect={(v) => {
+                            const label = ENTRY_POINT_OPTIONS.find((o) => o.value === v)!.label;
+                            handleChoice('entryPoint', v, label);
+                          }}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
             )}
 
             {step === 'cookingTime' && (
@@ -623,6 +738,10 @@ export default function MealChatScreen() {
                   placeholder="人数を教えてね！"
                   keyboardType="number-pad"
                   centered
+                  frameImage={PEOPLE_INPUT_FRAME_IMAGE}
+                  frameAspectRatio={PEOPLE_INPUT_FRAME_ASPECT_RATIO}
+                  framePatchBox={PEOPLE_INPUT_TEXT_BOX}
+                  framePatchFillColor={PEOPLE_INPUT_TEXT_PATCH_FILL_COLOR}
                 />
               </View>
             )}
@@ -658,11 +777,15 @@ export default function MealChatScreen() {
                       </Pressable>
                     );
                   })}
-                  <Pressable onPress={() => setShowAllergyPicker(true)}>
+                  <Pressable
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setShowAllergyPicker(true);
+                    }}>
                     {({ pressed }) => (
                       <ThemedView type="backgroundElement" style={[styles.allergyChip, pressed && styles.pressed]}>
                         <ThemedText type="small" themeColor="textSecondary">
-                          ＋ 避けたいものを追加
+                          ＋ アレルギー食材を追加
                         </ThemedText>
                       </ThemedView>
                     )}
@@ -672,7 +795,8 @@ export default function MealChatScreen() {
                   <TextInput
                     value={allergyValue}
                     onChangeText={setAllergyValue}
-                    placeholder="他にあれば（今回だけの例外など）"
+                    onFocus={() => setShowAllergyPicker(false)}
+                    placeholder="苦手食材を追加"
                     placeholderTextColor={theme.textSecondary}
                     style={[styles.textInput, styles.textInputCentered, { color: theme.text }]}
                   />
@@ -863,8 +987,7 @@ export default function MealChatScreen() {
       {step === 'allergy' && showAllergyPicker && (
         <View style={styles.allergyPickerOverlay} pointerEvents="box-none">
           <ThemedView type="background" style={styles.allergyPickerPanel}>
-            <View style={styles.allergyPickerHeader}>
-              <ThemedText type="smallBold">避けたいものを選ぶ</ThemedText>
+            <View style={[styles.allergyPickerHeader, styles.allergyPickerHeaderEnd]}>
               <Pressable onPress={() => setShowAllergyPicker(false)} hitSlop={8}>
                 {({ pressed }) => (
                   <ThemedText type="link" themeColor="accent" style={pressed && styles.pressed}>
@@ -892,6 +1015,10 @@ function TextRow({
   placeholder,
   keyboardType,
   centered,
+  frameImage,
+  frameAspectRatio,
+  framePatchBox,
+  framePatchFillColor,
 }: {
   value: string;
   onChangeText: (text: string) => void;
@@ -900,21 +1027,49 @@ function TextRow({
   placeholder: string;
   keyboardType?: 'default' | 'number-pad';
   centered?: boolean;
+  frameImage?: ImageSource;
+  frameAspectRatio?: number;
+  framePatchBox?: { top: DimensionValue; left: DimensionValue; width: DimensionValue; height: DimensionValue };
+  framePatchFillColor?: string;
 }) {
   const theme = useTheme();
+  const [isFocused, setIsFocused] = useState(false);
+
   return (
     <View style={styles.textRowStacked}>
-      <ThemedView type="backgroundElement" style={[styles.textInputWrapper, styles.textInputWrapperStacked]}>
-        <TextInput
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor={theme.textSecondary}
-          keyboardType={keyboardType}
-          style={[styles.textInput, { color: theme.text }, centered && styles.textInputCentered]}
-          onSubmitEditing={onSubmit}
-        />
-      </ThemedView>
+      {frameImage && framePatchBox && framePatchFillColor ? (
+        <View style={[styles.textInputWrapperStacked, { aspectRatio: frameAspectRatio }]}>
+          <Image source={frameImage} style={StyleSheet.absoluteFillObject} contentFit="fill" />
+          <View
+            style={[
+              styles.inputPatch,
+              framePatchBox,
+              { backgroundColor: value || isFocused ? framePatchFillColor : 'transparent' },
+            ]}>
+            <TextInput
+              value={value}
+              onChangeText={onChangeText}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              keyboardType={keyboardType}
+              style={[styles.textInput, { color: theme.text }, centered && styles.textInputCentered]}
+              onSubmitEditing={onSubmit}
+            />
+          </View>
+        </View>
+      ) : (
+        <ThemedView type="backgroundElement" style={[styles.textInputWrapper, styles.textInputWrapperStacked]}>
+          <TextInput
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={placeholder}
+            placeholderTextColor={theme.textSecondary}
+            keyboardType={keyboardType}
+            style={[styles.textInput, { color: theme.text }, centered && styles.textInputCentered]}
+            onSubmitEditing={onSubmit}
+          />
+        </ThemedView>
+      )}
       <View style={styles.controlsRow}>
         {onBack && <BackButton onPress={onBack} />}
         <SendButton onPress={onSubmit} />
@@ -941,11 +1096,7 @@ function BackButton({ onPress }: { onPress: () => void }) {
   return (
     <Pressable onPress={onPress}>
       {({ pressed }) => (
-        <ThemedView type="backgroundElement" style={[styles.backButton, pressed && styles.pressed]}>
-          <ThemedText type="smallBold" themeColor="textSecondary">
-            戻る
-          </ThemedText>
-        </ThemedView>
+        <Image source={BACK_BUTTON_IMAGE} style={[styles.backButton, pressed && styles.pressed]} contentFit="contain" />
       )}
     </Pressable>
   );
@@ -983,6 +1134,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: Spacing.two,
   },
+  plateOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
   plateImage: {
     width: '100%',
     height: '100%',
@@ -1007,6 +1161,16 @@ const styles = StyleSheet.create({
   },
   peopleRow: {
     marginTop: -Spacing.four,
+  },
+  entryPointGrid: {
+    gap: 0,
+  },
+  entryPointColumnRow: {
+    flexDirection: 'row',
+  },
+  entryPointColumn: {
+    flex: 1,
+    alignItems: 'center',
   },
   textRowStacked: {
     flexDirection: 'column',
@@ -1048,6 +1212,9 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     gap: Spacing.three,
   },
+  allergyPickerHeaderEnd: {
+    justifyContent: 'flex-end',
+  },
   allergyPickerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1066,6 +1233,12 @@ const styles = StyleSheet.create({
   textInputWrapperStacked: {
     alignSelf: 'stretch',
   },
+  inputPatch: {
+    position: 'absolute',
+    borderRadius: Spacing.two,
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
   textInput: {
     fontSize: 16,
   },
@@ -1073,15 +1246,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   sendButton: {
-    width: OK_BUTTON_SIZE,
-    height: OK_BUTTON_SIZE,
+    height: BACK_BUTTON_HEIGHT,
+    aspectRatio: OK_BUTTON_ASPECT_RATIO,
   },
   backButton: {
-    height: OK_BUTTON_SIZE,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    borderRadius: Spacing.four,
+    height: BACK_BUTTON_HEIGHT,
+    aspectRatio: BACK_BUTTON_ASPECT_RATIO,
   },
   choiceBackRow: {
     alignItems: 'center',

@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NutritionMeter } from '@/components/nutrition-meter';
@@ -10,7 +10,9 @@ import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { getMealRecord, MealRecord, MealType } from '@/lib/meal-records';
+import { useTheme } from '@/hooks/use-theme';
+import { getMealRecord, MealRecord, MealType, updateMealRecord } from '@/lib/meal-records';
+import { fetchRecipeTags, saveAiRecipe } from '@/lib/recipes';
 
 const KITCHEN_BACKGROUND = require('@/assets/images/meal-log/kitchen-bg.jpg');
 
@@ -33,9 +35,12 @@ function formatEatenAt(eatenAt: string): string {
 }
 
 export default function MealRecordDetailScreen() {
+  const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [record, setRecord] = useState<MealRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [checkedTitles, setCheckedTitles] = useState<Set<string>>(new Set());
+  const [isSavingRecipes, setIsSavingRecipes] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +54,36 @@ export default function MealRecordDetailScreen() {
       cancelled = true;
     };
   }, [id]);
+
+  const savedTitles = new Set(record?.savedRecipeTitles ?? []);
+
+  function toggleRecipeChecked(title: string) {
+    if (savedTitles.has(title)) return;
+    setCheckedTitles((current) => {
+      const next = new Set(current);
+      if (next.has(title)) next.delete(title);
+      else next.add(title);
+      return next;
+    });
+  }
+
+  async function handleSaveCheckedRecipes() {
+    if (!record || !record.linkedRecipes || checkedTitles.size === 0) return;
+    setIsSavingRecipes(true);
+    try {
+      for (const recipe of record.linkedRecipes) {
+        if (!checkedTitles.has(recipe.title)) continue;
+        const tags = await fetchRecipeTags(recipe.title, recipe.bookContent);
+        await saveAiRecipe({ title: recipe.title, bookContent: recipe.bookContent, course: recipe.course, ...tags });
+      }
+      const updatedTitles = [...savedTitles, ...checkedTitles];
+      const updated = await updateMealRecord(record.id, { savedRecipeTitles: updatedTitles });
+      setRecord(updated);
+      setCheckedTitles(new Set());
+    } finally {
+      setIsSavingRecipes(false);
+    }
+  }
 
   return (
     <View style={styles.container}>
@@ -122,6 +157,65 @@ export default function MealRecordDetailScreen() {
                 )}
               </View>
             )}
+
+            {record.linkedRecipes && record.linkedRecipes.length > 0 && (
+              <ThemedView type="background" style={styles.formCard}>
+                <ThemedText type="smallBold" themeColor="accent" style={styles.heading}>
+                  研究所にレシピを保存する
+                </ThemedText>
+                <View style={styles.checklist}>
+                  {record.linkedRecipes.map((recipe, index) => {
+                    const saved = savedTitles.has(recipe.title);
+                    const checked = saved || checkedTitles.has(recipe.title);
+                    return (
+                      <Pressable
+                        key={`${recipe.title}-${index}`}
+                        onPress={() => toggleRecipeChecked(recipe.title)}
+                        disabled={saved}
+                      >
+                        {({ pressed }) => (
+                          <View style={[styles.checklistRow, pressed && styles.pressed]}>
+                            <View
+                              style={[
+                                styles.checkbox,
+                                { borderColor: checked ? theme.accent : theme.textSecondary },
+                                checked && { backgroundColor: theme.accent },
+                              ]}
+                            >
+                              {checked && (
+                                <ThemedText type="smallBold" themeColor="background" style={styles.checkboxMark}>
+                                  ✓
+                                </ThemedText>
+                              )}
+                            </View>
+                            <ThemedText type="small">
+                              {recipe.course ? `${recipe.course}：` : ''}
+                              {recipe.title}
+                              {saved ? '（保存済み）' : ''}
+                            </ThemedText>
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Pressable onPress={handleSaveCheckedRecipes} disabled={isSavingRecipes || checkedTitles.size === 0}>
+                  {({ pressed }) => (
+                    <ThemedView
+                      type="accent"
+                      style={[
+                        styles.saveButton,
+                        (pressed || isSavingRecipes || checkedTitles.size === 0) && styles.pressed,
+                      ]}
+                    >
+                      <ThemedText type="smallBold" themeColor="background">
+                        {isSavingRecipes ? '保存中…' : '保存する'}
+                      </ThemedText>
+                    </ThemedView>
+                  )}
+                </Pressable>
+              </ThemedView>
+            )}
           </ScrollView>
         )}
       </SafeAreaView>
@@ -167,5 +261,46 @@ const styles = StyleSheet.create({
     marginTop: Spacing.one,
     padding: Spacing.three,
     borderRadius: Spacing.three,
+  },
+  formCard: {
+    borderRadius: Spacing.four,
+    padding: Spacing.three,
+    gap: Spacing.two,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  heading: {
+    fontSize: 17,
+  },
+  checklist: {
+    gap: Spacing.two,
+  },
+  checklistRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: Spacing.half,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxMark: {
+    fontSize: 13,
+    lineHeight: 15,
+  },
+  saveButton: {
+    paddingVertical: Spacing.three,
+    borderRadius: Spacing.three,
+    alignItems: 'center',
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

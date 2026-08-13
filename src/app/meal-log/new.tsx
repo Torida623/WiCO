@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,14 +16,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { NutritionMeter } from '@/components/nutrition-meter';
 import { ScreenHeader } from '@/components/screen-header';
 import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { fetchWithTimeout, getApiUrl } from '@/lib/api';
+import {
+  buildLinkedRecipesFromMenu,
+  DecidedMenu,
+  getDecidedMenu,
+  listDecidedMenus,
+  pickPrimaryLinkedRecipeTitle,
+} from '@/lib/decided-menus';
 import { refreshKitchenMemory } from '@/lib/kitchen-memory';
 import { importMealPhoto, MealType, NutritionBalance, saveMealRecord, searchMealRecords } from '@/lib/meal-records';
 
@@ -31,6 +36,23 @@ const KITCHEN_BACKGROUND = require('@/assets/images/meal-log/kitchen-bg.jpg');
 const MASCOT_READING_IMAGE = require('@/assets/images/meal-log/mascot-reading-book.png');
 const SPEECH_BUBBLE_IMAGE = require('@/assets/images/meal-log/speech-bubble-cloud.png');
 const SPEECH_BUBBLE_ASPECT_RATIO = 1398 / 1125;
+
+// ひなた作の記録元選択ボタン3種。撮影する・ギャラリーから選ぶのカード自体の高さ(文字だけが描かれて
+// いる、カメラの下がったストラップやギャラリー側の飾りテープなど枠外にはみ出す装飾がない場所で測った
+// 高さ)を実測すると、撮影する=566px・ギャラリーから選ぶ=527pxで、後者は上に約58pxの透明な余白
+// (装飾の縦のはみ出し分を画像の外形に含めたトリムの都合)が乗っている。GALLERY_BUTTON_HEIGHT_SCALE
+// はその分を打ち消してカードの実寸高さを揃えるための倍率(566/567 ÷ 527/585 ≈ 1.11)。
+const TAKE_PHOTO_BUTTON_IMAGE = require('@/assets/images/meal-log/take-photo-button-v2.png');
+const TAKE_PHOTO_BUTTON_ASPECT_RATIO = 2078 / 567;
+const PICK_FROM_GALLERY_BUTTON_IMAGE = require('@/assets/images/meal-log/pick-from-gallery-button-v2.png');
+const PICK_FROM_GALLERY_BUTTON_ASPECT_RATIO = 1696 / 585;
+const GALLERY_BUTTON_HEIGHT_SCALE = 1.11;
+const PICK_FROM_MENU_BUTTON_IMAGE = require('@/assets/images/meal-log/pick-from-menu-button.png');
+const PICK_FROM_MENU_BUTTON_ASPECT_RATIO = 1124 / 236;
+const CAPTURE_BUTTON_GAP = Spacing.two;
+/** 両方のボタンを一緒に大きく/小さくしたい時はこの値だけ変える。1.0が「行の横幅ぴったりに収まる
+ * 最大サイズ」なので、1より大きくすると画面幅からはみ出す — 小さくする方向(1未満)だけ安全。 */
+const CAPTURE_BUTTON_OVERALL_SCALE = 1;
 
 // ひなた作の「記録する」フォームカード素材。見出し文言・区切り線・プレースホル
 // ダー文字は絵の中に焼き込まれていて、コード側は空欄ゾーンに朝/昼/夜/おやつの
@@ -62,12 +84,6 @@ const NAMING_TITLE_BOX = { top: '40.4%', left: '8.2%', width: '83.3%', height: '
 // memoInput/memoPreviewText line-height math below, which is also fixed dp —
 // a %-based height drifted out of sync with that on different screen sizes.
 const NAMING_MEMO_BOX = { top: '69.7%', left: '7.0%', width: '85.6%', height: 100 } as const;
-
-const FOOD_GROUP_COLORS = {
-  energy: '#F0B84B',
-  protein: '#E27058',
-  vegetable: '#7FA65C',
-} as const;
 
 const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
   mediaTypes: 'images',
@@ -190,14 +206,16 @@ async function analyzeNutritionBalance(
   return { energy: data.energy, protein: data.protein, vegetable: data.vegetable, comment: data.comment };
 }
 
-type Phase = 'capture' | 'naming' | 'analyzing' | 'saved';
+type Phase = 'capture' | 'naming' | 'analyzing';
 
 export default function NewMealRecordScreen() {
   const theme = useTheme();
+  const { menuId, dishIndices: dishIndicesParam } = useLocalSearchParams<{ menuId?: string; dishIndices?: string }>();
   const [cameraPermission, requestCameraPermission] = ImagePicker.useCameraPermissions();
   const [libraryPermission, requestLibraryPermission] = ImagePicker.useMediaLibraryPermissions();
 
   const [phase, setPhase] = useState<Phase>('capture');
+  const [captureButtonRowWidth, setCaptureButtonRowWidth] = useState(0);
   const [pickedUri, setPickedUri] = useState<string | null>(null);
   const [pickedBase64, setPickedBase64] = useState<string | null>(null);
   const [pickedMimeType, setPickedMimeType] = useState('image/jpeg');
@@ -209,18 +227,71 @@ export default function NewMealRecordScreen() {
   const [memo, setMemo] = useState('');
   const [memoFocused, setMemoFocused] = useState(false);
   const memoInputRef = useRef<TextInput>(null);
-  const [nutritionBalance, setNutritionBalance] = useState<NutritionBalance | null>(null);
+  // 参考にした献立 — either handed off via ?menuId= from 献立ノート's「料理の思い出に記録する」button, or
+  // picked directly on this screen's 献立から選ぶ picker (for when a photo gets taken first, without
+  // ever visiting 献立ノート). Both paths converge on the same selectedMenu/selectedDishIndices state.
+  const [recentMenus, setRecentMenus] = useState<DecidedMenu[]>([]);
+  const [selectedMenu, setSelectedMenu] = useState<DecidedMenu | null>(null);
+  const [selectedDishIndices, setSelectedDishIndices] = useState<Set<number>>(new Set());
+  // Hidden by default so the capture screen starts as just 撮影する/ギャラリーから選ぶ — opens up (and
+  // starts pre-opened) once there's a reason to show it: the person taps 献立から選ぶ, or a menu
+  // already arrived via ?menuId= from 献立ノート.
+  const [showMenuPicker, setShowMenuPicker] = useState(Boolean(menuId));
 
-  function resetToCapture() {
-    setPhase('capture');
-    setPickedUri(null);
-    setPickedBase64(null);
-    setPickedMimeType('image/jpeg');
-    setPermanentPhotoUri(null);
-    setDishTitle('');
-    setMealType(null);
-    setMemo('');
-    setNutritionBalance(null);
+  useEffect(() => {
+    listDecidedMenus().then(setRecentMenus);
+  }, []);
+
+  useEffect(() => {
+    if (!menuId) return;
+    let cancelled = false;
+    getDecidedMenu(menuId).then((menu) => {
+      if (cancelled || !menu) return;
+      const dishIndices = dishIndicesParam
+        ? dishIndicesParam
+            .split(',')
+            .map((s) => Number(s))
+            .filter((n) => !Number.isNaN(n))
+        : (menu.dishes ?? []).map((_, index) => index);
+      setSelectedMenu(menu);
+      setSelectedDishIndices(new Set(dishIndices));
+      setShowMenuPicker(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [menuId, dishIndicesParam]);
+
+  // The dish-name field only exists from the 'naming' phase onward, i.e. always after any menu
+  // selection happens (param-driven on mount, or picked on this still-photo-less capture screen) —
+  // so it's always safe to overwrite here rather than only filling it in when empty.
+  useEffect(() => {
+    if (!selectedMenu) return;
+    const recipes = buildLinkedRecipesFromMenu(
+      selectedMenu,
+      selectedMenu.dishes && selectedMenu.dishes.length > 0 ? [...selectedDishIndices] : undefined,
+    );
+    setDishTitle(pickPrimaryLinkedRecipeTitle(recipes));
+  }, [selectedMenu, selectedDishIndices]);
+
+  function toggleMenuSelection(menu: DecidedMenu) {
+    if (selectedMenu?.id === menu.id) {
+      setSelectedMenu(null);
+      setSelectedDishIndices(new Set());
+      setDishTitle('');
+      return;
+    }
+    setSelectedMenu(menu);
+    setSelectedDishIndices(new Set((menu.dishes ?? []).map((_, index) => index)));
+  }
+
+  function toggleSelectedDish(index: number) {
+    setSelectedDishIndices((current) => {
+      const next = new Set(current);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
   }
 
   async function handlePicked(asset: ImagePicker.ImagePickerAsset) {
@@ -285,25 +356,51 @@ export default function NewMealRecordScreen() {
           console.error(error);
         }
       }
-      setNutritionBalance(balance);
 
-      await saveMealRecord({
+      const linkedRecipes = selectedMenu
+        ? buildLinkedRecipesFromMenu(
+            selectedMenu,
+            selectedMenu.dishes && selectedMenu.dishes.length > 0 ? [...selectedDishIndices] : undefined,
+          )
+        : undefined;
+
+      const record = await saveMealRecord({
         eatenAt: new Date().toISOString(),
         mealType: mealType ?? undefined,
         photoUri: permanentPhotoUri,
         dishes: finalDishes,
         memo: memo.trim() || undefined,
         nutritionBalance: balance ?? undefined,
+        linkedRecipes,
       });
       // Fire-and-forget: only worth re-deriving when this save actually adds new evidence.
       if (memo.trim()) refreshKitchenMemory().catch((error) => console.error(error));
-      setPhase('saved');
+      // The memory's own detail page shows the same nutrition summary and (when this record came
+      // from a decided menu) the 研究所にレシピを保存する checklist, so there's no separate "saved"
+      // screen to duplicate that here — just hand off to the page that persists.
+      router.replace(`/meal-log/${record.id}`);
     } catch (error) {
       console.error(error);
       Alert.alert('記録に失敗したよ', 'もう一度試してみてね。');
       setPhase('naming');
     }
   }
+
+  // Solves for a base height so that takePhotoHeight = base and galleryHeight = base *
+  // GALLERY_BUTTON_HEIGHT_SCALE (equalizing the two cards' actual measured body height) while the
+  // two widths (each height * its own aspect ratio) plus the gap still add up to exactly the row's
+  // measured width — always fits the screen, whatever the device. CAPTURE_BUTTON_OVERALL_SCALE then
+  // scales both together, for whenever the buttons as a whole should get bigger or smaller.
+  const captureButtonBaseHeight =
+    captureButtonRowWidth > 0
+      ? ((captureButtonRowWidth - CAPTURE_BUTTON_GAP) /
+          (TAKE_PHOTO_BUTTON_ASPECT_RATIO + GALLERY_BUTTON_HEIGHT_SCALE * PICK_FROM_GALLERY_BUTTON_ASPECT_RATIO)) *
+        CAPTURE_BUTTON_OVERALL_SCALE
+      : 0;
+  const takePhotoButtonHeight = captureButtonBaseHeight;
+  const takePhotoButtonWidth = takePhotoButtonHeight * TAKE_PHOTO_BUTTON_ASPECT_RATIO;
+  const pickFromGalleryButtonHeight = captureButtonBaseHeight * GALLERY_BUTTON_HEIGHT_SCALE;
+  const pickFromGalleryButtonWidth = pickFromGalleryButtonHeight * PICK_FROM_GALLERY_BUTTON_ASPECT_RATIO;
 
   return (
     <View style={styles.container}>
@@ -313,7 +410,7 @@ export default function NewMealRecordScreen() {
         <ScreenHeader onBack={() => router.back()} />
 
         {phase === 'capture' && (
-          <View style={[styles.content, styles.captureContent]} pointerEvents="box-none">
+          <ScrollView style={styles.flex} contentContainerStyle={styles.captureScrollContent} pointerEvents="box-none">
             <View style={styles.introArea}>
               <View style={styles.introBubbleWrap}>
                 <Image source={SPEECH_BUBBLE_IMAGE} style={styles.introBubbleImage} contentFit="contain" />
@@ -325,27 +422,120 @@ export default function NewMealRecordScreen() {
               </View>
               <Image source={MASCOT_READING_IMAGE} style={styles.introMascotImage} contentFit="contain" />
             </View>
-            <View style={[styles.buttonRow, styles.captureButtonRow]}>
-              <Pressable onPress={handleTakePhoto} style={styles.actionButtonPressable}>
-                {({ pressed }) => (
-                  <ThemedView type="accent" style={[styles.actionButton, pressed && styles.pressed]}>
-                    <ThemedText type="smallBold" themeColor="background">
-                      撮影する
-                    </ThemedText>
-                  </ThemedView>
-                )}
-              </Pressable>
-              <Pressable onPress={handlePickFromLibrary} style={styles.actionButtonPressable}>
-                {({ pressed }) => (
-                  <ThemedView type="accent" style={[styles.actionButton, pressed && styles.pressed]}>
-                    <ThemedText type="smallBold" themeColor="background">
-                      ギャラリーから選ぶ
-                    </ThemedText>
-                  </ThemedView>
-                )}
-              </Pressable>
+            <View
+              style={[styles.buttonRow, styles.captureButtonRow]}
+              onLayout={(event) => setCaptureButtonRowWidth(event.nativeEvent.layout.width)}
+            >
+              {captureButtonRowWidth > 0 && (
+                <>
+                  <Pressable onPress={handleTakePhoto}>
+                    {({ pressed }) => (
+                      <Image
+                        source={TAKE_PHOTO_BUTTON_IMAGE}
+                        style={[
+                          { width: takePhotoButtonWidth, height: takePhotoButtonHeight },
+                          pressed && styles.pressed,
+                        ]}
+                        contentFit="contain"
+                      />
+                    )}
+                  </Pressable>
+                  <Pressable onPress={handlePickFromLibrary}>
+                    {({ pressed }) => (
+                      <Image
+                        source={PICK_FROM_GALLERY_BUTTON_IMAGE}
+                        style={[
+                          { width: pickFromGalleryButtonWidth, height: pickFromGalleryButtonHeight },
+                          pressed && styles.pressed,
+                        ]}
+                        contentFit="contain"
+                      />
+                    )}
+                  </Pressable>
+                </>
+              )}
             </View>
-          </View>
+
+            {recentMenus.length > 0 && !showMenuPicker && (
+              <Pressable onPress={() => setShowMenuPicker(true)} style={styles.menuPickerToggleButtonPressable}>
+                {({ pressed }) => (
+                  <Image
+                    source={PICK_FROM_MENU_BUTTON_IMAGE}
+                    style={[
+                      {
+                        width: takePhotoButtonHeight * PICK_FROM_MENU_BUTTON_ASPECT_RATIO,
+                        height: takePhotoButtonHeight,
+                      },
+                      pressed && styles.pressed,
+                    ]}
+                    contentFit="contain"
+                  />
+                )}
+              </Pressable>
+            )}
+
+            {showMenuPicker && recentMenus.length > 0 && (
+              <View style={styles.menuPickerSection} pointerEvents="box-none">
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.menuChipRow}
+                >
+                  {recentMenus.map((menu) => {
+                    const selected = selectedMenu?.id === menu.id;
+                    const primaryTitle = pickPrimaryLinkedRecipeTitle(buildLinkedRecipesFromMenu(menu));
+                    const extraCount = (menu.dishes?.length ?? 1) - 1;
+                    return (
+                      <Pressable key={menu.id} onPress={() => toggleMenuSelection(menu)}>
+                        {({ pressed }) => (
+                          <View
+                            style={[styles.menuChip, selected && { backgroundColor: theme.accent }, pressed && styles.pressed]}
+                          >
+                            <ThemedText type="small" themeColor={selected ? 'background' : 'text'}>
+                              {primaryTitle}
+                              {extraCount > 0 ? `　他${extraCount}品` : ''}
+                            </ThemedText>
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+
+                {selectedMenu && selectedMenu.dishes && selectedMenu.dishes.length > 1 && (
+                  <View style={styles.checklist}>
+                    {selectedMenu.dishes.map((dish, index) => {
+                      const checked = selectedDishIndices.has(index);
+                      return (
+                        <Pressable key={`${dish.course}-${index}`} onPress={() => toggleSelectedDish(index)}>
+                          {({ pressed }) => (
+                            <View style={[styles.checklistRow, pressed && styles.pressed]}>
+                              <View
+                                style={[
+                                  styles.checkbox,
+                                  { borderColor: checked ? theme.accent : theme.textSecondary },
+                                  checked && { backgroundColor: theme.accent },
+                                ]}
+                              >
+                                {checked && (
+                                  <ThemedText type="smallBold" themeColor="background" style={styles.checkboxMark}>
+                                    ✓
+                                  </ThemedText>
+                                )}
+                              </View>
+                              <ThemedText type="small">
+                                {dish.course}：{dish.title}
+                              </ThemedText>
+                            </View>
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
         )}
 
         {phase === 'naming' && (
@@ -469,62 +659,6 @@ export default function NewMealRecordScreen() {
             </View>
           </View>
         )}
-
-        {phase === 'saved' && (
-          <ScrollView contentContainerStyle={styles.editContent}>
-            <View style={styles.editContentInner}>
-              {pickedUri && <Image source={{ uri: pickedUri }} style={styles.editPreview} contentFit="cover" />}
-              <ThemedText type="small" themeColor="textSecondary" style={styles.savedNote}>
-                記録したよ！
-              </ThemedText>
-
-              {nutritionBalance && (
-                <View style={styles.section}>
-                  <ThemedText type="smallBold">栄養バランス</ThemedText>
-                  <NutritionMeter
-                    label="エネルギーになる食品"
-                    level={nutritionBalance.energy}
-                    color={FOOD_GROUP_COLORS.energy}
-                  />
-                  <NutritionMeter
-                    label="血や肉をつくる食品"
-                    level={nutritionBalance.protein}
-                    color={FOOD_GROUP_COLORS.protein}
-                  />
-                  <NutritionMeter
-                    label="体の調子を整える食品"
-                    level={nutritionBalance.vegetable}
-                    color={FOOD_GROUP_COLORS.vegetable}
-                  />
-                  {nutritionBalance.comment && (
-                    <ThemedView type="backgroundElement" style={styles.commentBubble}>
-                      <ThemedText type="small">{nutritionBalance.comment}</ThemedText>
-                    </ThemedView>
-                  )}
-                </View>
-              )}
-
-              <View style={styles.buttonRow}>
-                <Pressable onPress={resetToCapture} style={styles.actionButtonPressable}>
-                  {({ pressed }) => (
-                    <ThemedView type="accent" style={[styles.actionButton, pressed && styles.pressed]}>
-                      <ThemedText type="smallBold" themeColor="background">
-                        もう一枚記録する
-                      </ThemedText>
-                    </ThemedView>
-                  )}
-                </Pressable>
-                <Pressable onPress={() => router.back()} style={styles.actionButtonPressable}>
-                  {({ pressed }) => (
-                    <ThemedView type="backgroundElement" style={[styles.actionButton, pressed && styles.pressed]}>
-                      <ThemedText type="smallBold">戻る</ThemedText>
-                    </ThemedView>
-                  )}
-                </Pressable>
-              </View>
-            </View>
-          </ScrollView>
-        )}
       </SafeAreaView>
     </View>
   );
@@ -551,15 +685,22 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     gap: Spacing.three,
   },
-  captureContent: {
-    transform: [{ translateY: -(Spacing.six + Spacing.four) }],
+  // Unlike `content` (flex:1, shared with the 'analyzing' phase's full-bleed preview), this is a
+  // ScrollView contentContainerStyle — flexGrow, not flex, so it hugs its own content instead of
+  // stretching to fill the screen. That, plus introArea no longer being flex:1 below, is what keeps
+  // the mascot/bubble/buttons pinned in place when the 献立から選ぶ picker opens and closes instead
+  // of everything above it sliding to redistribute the leftover space.
+  captureScrollContent: {
+    flexGrow: 1,
+    padding: Spacing.three,
+    gap: Spacing.three,
   },
   preview: {
     flex: 1,
     borderRadius: Spacing.three,
   },
   introArea: {
-    flex: 1,
+    marginTop: Spacing.three,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -594,18 +735,60 @@ const styles = StyleSheet.create({
   },
   buttonRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    // 'flex-end' (not 'center'): both button images have their card flush against the bottom edge
+    // of their own PNG canvas (no bottom padding), so bottom-aligning the two boxes lines up the
+    // actual card edges exactly — centering the boxes instead would offset them, since only the
+    // gallery image carries extra transparent padding, and it's all on top (the tape decoration's
+    // overhang), not evenly split top/bottom.
+    alignItems: 'flex-end',
     gap: Spacing.two,
   },
   captureButtonRow: {
-    marginTop: -Spacing.six,
+    // No negative marginTop here anymore — that was compensating for introArea's old flex:1
+    // centering (which left extra empty space below the mascot). Now that introArea just takes its
+    // natural size, the plain `gap` on captureScrollContent already sits close underneath it.
   },
-  actionButtonPressable: {
-    flex: 1,
-  },
-  actionButton: {
-    paddingVertical: Spacing.three,
-    borderRadius: Spacing.three,
+  menuPickerToggleButtonPressable: {
+    width: '100%',
     alignItems: 'center',
+    marginTop: 0,
+  },
+  menuPickerSection: {
+    marginTop: 0,
+    gap: Spacing.two,
+  },
+  menuChipRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.one,
+  },
+  menuChip: {
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Spacing.four,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+  },
+  checklist: {
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.one,
+  },
+  checklistRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: Spacing.half,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxMark: {
+    fontSize: 13,
+    lineHeight: 15,
   },
   analyzingOverlay: {
     position: 'absolute',
@@ -629,11 +812,6 @@ const styles = StyleSheet.create({
   },
   editPreviewWrap: {
     width: '100%',
-  },
-  editPreview: {
-    width: '100%',
-    aspectRatio: 4 / 3,
-    borderRadius: Spacing.three,
   },
   photoFrameWrapper: {
     width: '100%',
@@ -659,9 +837,6 @@ const styles = StyleSheet.create({
     bottom: '2%',
     width: '32%',
     aspectRatio: NAMING_CHANGE_PHOTO_BADGE_ASPECT_RATIO,
-  },
-  section: {
-    gap: Spacing.two,
   },
   formCardWrapper: {
     width: '100%',
@@ -692,11 +867,6 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.three,
     overflow: 'hidden',
   },
-  commentBubble: {
-    marginTop: Spacing.one,
-    padding: Spacing.three,
-    borderRadius: Spacing.three,
-  },
   dishInput: {
     flex: 1,
     paddingHorizontal: Spacing.three,
@@ -726,9 +896,6 @@ const styles = StyleSheet.create({
   confirmButtonImage: {
     width: '100%',
     aspectRatio: NAMING_CONFIRM_BUTTON_ASPECT_RATIO,
-  },
-  savedNote: {
-    textAlign: 'center',
   },
   pressed: {
     opacity: 0.7,

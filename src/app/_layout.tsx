@@ -23,6 +23,23 @@ const TITLE_BGM_VOLUME = 0.4;
 const DAY_BGM = { source: require('@/assets/audio/title-bgm.mp3'), fadeStartMs: 75_000, fadeInMs: 600 }; // 1:17 track
 const NIGHT_BGM = { source: require('@/assets/audio/night-bgm.mp3'), fadeStartMs: 115_000, fadeInMs: 0 }; // 1:57 track
 
+// Shared by 献立ノート(decided-menus) and お買い物メモ(shopping-memo) — both tracks run ~6:06.
+const NOTEBOOK_BGM_VOLUME = 0.4;
+const NOTEBOOK_DAY_BGM = {
+  source: require('@/assets/audio/notebook-bgm-day.mp3'),
+  fadeStartMs: 363_900,
+  fadeInMs: 600,
+  startDelayMs: 0,
+}; // 6:06 track
+const NOTEBOOK_NIGHT_BGM = {
+  source: require('@/assets/audio/notebook-bgm-night.mp3'),
+  fadeStartMs: 363_800,
+  fadeInMs: 600,
+  // Night 献立ノート specifically: let the screen's own entrance settle for a beat before the BGM
+  // kicks in, instead of starting the instant the screen mounts.
+  startDelayMs: 500,
+}; // 6:06 track
+
 // Same track regardless of time of day; fadeStartMs is tuned to its 1:03 runtime.
 const MEAL_BGM = require('@/assets/audio/meal-bgm.mp3');
 const MEAL_BGM_VOLUME = 0.4;
@@ -54,6 +71,7 @@ export default function TabLayout() {
   const fadeOpacity = useSharedValue(0);
   const daytime = useRef(isDaytime()).current;
   const titleBgm = daytime ? DAY_BGM : NIGHT_BGM;
+  const notebookBgm = daytime ? NOTEBOOK_DAY_BGM : NOTEBOOK_NIGHT_BGM;
   const pathname = usePathname();
 
   // All three loops are created once, right here at the root, the moment the
@@ -64,9 +82,18 @@ export default function TabLayout() {
   // is what caused the audible startup delay/silence on meal-log before).
   useLoopingBgm(titleBgm.source, TITLE_BGM_VOLUME, stage !== 'app', titleBgm.fadeStartMs, titleBgm.fadeInMs);
   useLoopingBgm(
+    notebookBgm.source,
+    NOTEBOOK_BGM_VOLUME,
+    stage === 'app' && (pathname.startsWith('/decided-menus') || pathname.startsWith('/shopping-memo')),
+    notebookBgm.fadeStartMs,
+    notebookBgm.fadeInMs,
+    notebookBgm.startDelayMs,
+  );
+  useLoopingBgm(
     MEAL_BGM,
     MEAL_BGM_VOLUME,
-    stage === 'app' && (pathname === '/' || pathname === '/menu-chat'),
+    stage === 'app' &&
+      (pathname === '/' || pathname === '/menu-chat' || pathname.startsWith('/food-preferences')),
     MEAL_BGM_FADE_START_MS,
     0,
   );

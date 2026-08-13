@@ -11,6 +11,12 @@ export type ChoiceOption<T extends string> = {
   icon?: ImageSource;
   iconPosition?: 'left' | 'right';
   newRow?: boolean;
+  /** Full button artwork (text already drawn into the image) instead of the default text+icon button. */
+  image?: ImageSource;
+  imageAspectRatio?: number;
+  /** Corrects for artwork where decoration (steam, a pan handle, ...) eats into the crop, so the
+   * readable badge itself would otherwise render smaller than other options at the same box height. */
+  imageScale?: number;
 };
 
 export type ChoiceButtonsProps<T extends string> = {
@@ -18,12 +24,30 @@ export type ChoiceButtonsProps<T extends string> = {
   onSelect: (value: T) => void;
 };
 
+const IMAGE_BUTTON_HEIGHT = 72;
+
 export function ChoiceButtons<T extends string>({ options, onSelect }: ChoiceButtonsProps<T>) {
   return (
     <View style={styles.container}>
       {options.flatMap((option) => {
         const iconPosition = option.iconPosition ?? 'left';
-        const button = (
+        const button = option.image ? (
+          <Pressable key={option.value} onPress={() => onSelect(option.value)}>
+            {({ pressed }) => (
+              <Image
+                source={option.image}
+                style={[
+                  {
+                    height: IMAGE_BUTTON_HEIGHT * (option.imageScale ?? 1),
+                    aspectRatio: option.imageAspectRatio ?? 1,
+                  },
+                  pressed && styles.pressed,
+                ]}
+                contentFit="contain"
+              />
+            )}
+          </Pressable>
+        ) : (
           <Pressable key={option.value} onPress={() => onSelect(option.value)}>
             {({ pressed }) => (
               <ThemedView
@@ -56,7 +80,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    alignItems: 'flex-start',
+    alignItems: 'flex-end',
     justifyContent: 'center',
     gap: Spacing.two,
   },

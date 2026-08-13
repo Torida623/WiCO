@@ -59,37 +59,87 @@ export type Answers = {
 export const ENTRY_POINT_OPTIONS: {
   value: EntryPoint;
   label: string;
-  icon: ImageSource;
-  iconPosition?: 'left' | 'right';
-  newRow?: boolean;
+  image: ImageSource;
+  imageAspectRatio: number;
+  imageScale: number;
 }[] = [
-  { value: 'breakfast', label: '朝ごはん', icon: require('@/assets/images/ui/entry-icons/rice-ball.png') },
-  { value: 'lunch', label: '昼ごはん', icon: require('@/assets/images/ui/entry-icons/sun.png') },
-  { value: 'dinner', label: '夜ごはん', icon: require('@/assets/images/ui/entry-icons/moon-stars.png') },
+  {
+    value: 'breakfast',
+    label: '朝ごはん',
+    image: require('@/assets/images/ui/entry-buttons/entry-breakfast-button.png'),
+    imageAspectRatio: 614 / 319,
+    // Scaled well below the shared 72px base: with 5 illustrated options (vs. 2 for cooking
+    // time/shopping), full-size badges stacked too tall and pushed into the fixed-position mascot.
+    imageScale: 1.07,
+  },
+  {
+    value: 'lunch',
+    label: '昼ごはん',
+    image: require('@/assets/images/ui/entry-buttons/entry-lunch-button.png'),
+    imageAspectRatio: 581 / 319,
+    imageScale: 1.07,
+  },
+  {
+    value: 'dinner',
+    label: '夜ごはん',
+    image: require('@/assets/images/ui/entry-buttons/entry-dinner-button.png'),
+    imageAspectRatio: 732 / 306,
+    imageScale: 1.07,
+  },
   {
     value: 'aiRecommend',
     label: 'ペロココのおすすめ',
-    icon: require('@/assets/images/ui/entry-icons/chef-hat.png'),
-    iconPosition: 'right',
-    newRow: true,
+    image: require('@/assets/images/ui/entry-buttons/entry-aiRecommend-button.png'),
+    imageAspectRatio: 759 / 314,
+    imageScale: 1.07,
   },
   {
     value: 'fridge',
     label: '冷蔵庫にある食材から考える',
-    icon: require('@/assets/images/ui/entry-icons/carrot.png'),
-    iconPosition: 'right',
-    newRow: true,
+    image: require('@/assets/images/ui/entry-buttons/entry-fridge-button.png'),
+    imageAspectRatio: 755 / 338,
+    imageScale: 1.07,
   },
 ];
 
-export const COOKING_TIME_OPTIONS: { value: 'relaxed' | 'quick'; label: string }[] = [
-  { value: 'relaxed', label: '時間をかけてもOK' },
-  { value: 'quick', label: 'ぱぱっと作りたい' },
+export const COOKING_TIME_OPTIONS: {
+  value: 'relaxed' | 'quick';
+  label: string;
+  image: ImageSource;
+  imageAspectRatio: number;
+  imageScale: number;
+}[] = [
+  {
+    value: 'relaxed',
+    label: '時間をかけてもOK',
+    image: require('@/assets/images/ui/cooking-time-relaxed-button.png'),
+    imageAspectRatio: 983 / 452,
+    // The rising steam eats into the crop (badge is only ~75% of the canvas height), so this needs
+    // a taller box than 'quick' for the badge itself to read as the same size.
+    imageScale: 1.07,
+  },
+  {
+    value: 'quick',
+    label: 'ぱぱっと作りたい',
+    image: require('@/assets/images/ui/cooking-time-quick-button.png'),
+    imageAspectRatio: 958 / 407,
+    imageScale: 0.94,
+  },
 ];
 
-export const SHOPPING_OPTIONS: { value: 'yes' | 'no'; label: string }[] = [
-  { value: 'yes', label: '行けます' },
-  { value: 'no', label: '行けません' },
+export const SHOPPING_OPTIONS: { value: 'yes' | 'no'; label: string; image: ImageSource; imageAspectRatio: number }[] = [
+  {
+    value: 'yes',
+    label: '行けます',
+    image: require('@/assets/images/ui/shopping-available-button.png'),
+    imageAspectRatio: 943 / 344,
+  },
+  {
+    value: 'no',
+    label: '行けません',
+    image: require('@/assets/images/ui/shopping-unavailable-button.png'),
+    imageAspectRatio: 942 / 345,
+  },
 ];
 
 export const GENRE_TAG_OPTIONS: { value: string; label: string }[] = [

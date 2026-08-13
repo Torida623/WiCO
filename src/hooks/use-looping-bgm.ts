@@ -39,6 +39,9 @@ export function useLoopingBgm(
   playing: boolean,
   fadeStartMs: number,
   fadeInMs: number,
+  /** Delay before the very first play() once `playing` flips true (e.g. letting a screen's own
+   * entrance settle before its BGM starts). Loop restarts after that are never delayed. */
+  startDelayMs = 0,
 ): AudioPlayer {
   const player = useAudioPlayer(source);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -85,7 +88,8 @@ export function useLoopingBgm(
     }
 
     if (playing) {
-      scheduleCycle(true);
+      const startTimer = setTimeout(() => scheduleCycle(true), startDelayMs);
+      timers.current.push(startTimer);
     } else {
       clearTimers();
       player.pause();
@@ -96,7 +100,7 @@ export function useLoopingBgm(
     }
 
     return clearTimers;
-  }, [player, volume, playing, fadeStartMs, fadeInMs]);
+  }, [player, volume, playing, fadeStartMs, fadeInMs, startDelayMs]);
 
   return player;
 }

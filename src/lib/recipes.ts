@@ -2,7 +2,41 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import { Course } from '@/constants/meal-flow';
+import { fetchWithTimeout, getApiUrl } from '@/lib/api';
 import { ensureAnonSession, getCurrentUserId, supabase } from '@/lib/supabase';
+
+/** A not-yet-saved recipe candidate — the shape decided-menus hands off to a meal record's
+ * 「参考にしたレシピ」snapshot, and what a meal record later hands to saveAiRecipe(). Deliberately a
+ * plain content snapshot (not a reference by id) since the menu it came from expires in 48h. */
+export type LinkedRecipeSnapshot = { title: string; bookContent: string; course?: Course };
+
+export type RecipeTags = { genreTag: string | null; formatTag: string | null; tasteTag: string | null; temperatureTag: string | null };
+
+const EMPTY_RECIPE_TAGS: RecipeTags = { genreTag: null, formatTag: null, tasteTag: null, temperatureTag: null };
+const RECIPE_TAGS_FETCH_TIMEOUT_MS = 30_000;
+
+/** Runs at save-to-lab time (not at menu-generation or meal-record time) since these tags are only
+ * ever needed if the dish actually gets saved. Best-effort: a failure here shouldn't block the save. */
+export async function fetchRecipeTags(title: string, bookContent: string): Promise<RecipeTags> {
+  try {
+    const res = await fetchWithTimeout(
+      getApiUrl('/api/recipe-tags'),
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, bookContent }) },
+      RECIPE_TAGS_FETCH_TIMEOUT_MS,
+    );
+    if (!res.ok) throw new Error('recipe-tags request failed');
+    const data = await res.json();
+    return {
+      genreTag: data.genreTag ?? null,
+      formatTag: data.formatTag ?? null,
+      tasteTag: data.tasteTag ?? null,
+      temperatureTag: data.temperatureTag ?? null,
+    };
+  } catch (error) {
+    console.error('タグの生成に失敗:', error);
+    return EMPTY_RECIPE_TAGS;
+  }
+}
 
 export type RecipeSource = 'ai' | 'user' | 'public';
 

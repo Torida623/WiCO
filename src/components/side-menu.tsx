@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { Href, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Dimensions, Pressable, StyleSheet } from 'react-native';
+import { Dimensions, Keyboard, Pressable, StyleSheet } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -64,7 +64,12 @@ export function SideMenu() {
   return (
     <>
       <SafeAreaView style={styles.buttonSafeArea} edges={['top', 'right']} pointerEvents="box-none">
-        <Pressable onPress={() => setIsOpen(true)} style={styles.buttonPressable}>
+        <Pressable
+          onPress={() => {
+            Keyboard.dismiss();
+            setIsOpen(true);
+          }}
+          style={styles.buttonPressable}>
           {({ pressed }) => (
             <Image
               source={SIDE_MENU_BUTTON_IMAGE}
