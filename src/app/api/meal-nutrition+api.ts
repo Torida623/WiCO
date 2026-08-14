@@ -36,10 +36,10 @@ const NUTRITION_SYSTEM_PROMPT = `あなたは栄養士のアシスタントで�
 
 いずれの食品群も、上記の目安と比べて明確に少ない/多いと言える場合は、遠慮せずlowやhigh側の判定を選んでください。"adequate"は本当に目安通りの量のときだけ使ってください。
 
-写真が添付されている場合は、渡された料理名だけに引っ張られず、写真に写っている皿全体（ご飯・汁物・副菜など主要な構成）を見て、上記の目安と照らし合わせて量感を判定してください。ただし調味料・薬味・ソースなど細かい付け合わせまで厳密に数える必要はありません。写真がない場合は、料理名から一般的に想定される分量で判定してください。
+写真が添付されている場合は、必ず最初にphotoDescriptionへ、写真に実際に写っているものを客観的に描写してください（料理名のテキストは一切見ずに、写真の画素だけを見て書くつもりで）。その後のenergy/protein/vegetable/breakdown/commentは、すべてこのphotoDescriptionの内容を根拠に組み立ててください。渡された料理名は「ユーザーが入力したラベル」に過ぎず、間違っていたり実際の写真と違っていたりする可能性があるものとして扱い、判定内容を左右させないでください（写真だけでは分からない細部の補足程度に留める）。ただし調味料・薬味・ソースなど細かい付け合わせまで厳密に数える必要はありません。写真がない場合は、photoDescriptionを空文字にし、料理名から一般的に想定される分量で判定してください。
 
 最後に、その判定結果を踏まえて、ユーザーが「今日も料理してよかったな」と前向きな気持ちになれる一言コメントを作ってください。栄養士としてコメントしてください。幼稚な言い回しは避け、大人向けの落ち着いた言葉選びにしてください。
-・具体的な料理名を挙げて、良かった点を褒める
+・具体的な料理を挙げて、良かった点を褒める（写真がある場合は、料理名のテキストではなく、写真から読み取った実際の内容について書く）
 ・どこかの食品群がlowでも、指摘・注意するような言い方は避ける。触れるとしても軽く前向きに（「次はこれを足すともっといいかも」程度）留めるか、あるいは無理に触れなくてよい
 ・主語は常にユーザーと料理そのもの。ペロココを主語にした一人称の発言や感情表現は禁止（「ペロココもうれしいな」「見てて楽しい」「僕も食べたくなっちゃった」のような文は不可）
 ・「うれしい」「楽しい」「楽しみ」「幸せ」「テンション」など、話し手側の感情・気分を表す言葉は一切使わない。あくまでユーザーの料理の内容や工夫そのものを客観的に褒める
@@ -52,6 +52,7 @@ const NUTRITION_SYSTEM_PROMPT = `あなたは栄養士のアシスタントで�
 直近の食事でvegetableがlow/slightlyLow続きだった中、今回の料理・食品リストに野菜ジュース・サラダ・スープの具など「その食品群を補おうとした様子」が新しく含まれている場合は、今回の判定がまだlow/slightlyLowだったとしても、その工夫・行動を見つけてコメントで拾ってください（例:「野菜ジュースをプラスしたのはいい心がけだね」）。判定の数値を甘くする必要はありませんが、コメントでは「量がまだ足りない」という否定的な角度ではなく、「補おうとしたこと」自体を主役にして褒めてください。
 
 指定されたJSON形式でのみ応答してください。
+・photoDescription: 写真に写っているものの客観的な描写（写真がない場合は空文字）
 ・energy / protein / vegetable: それぞれ "low" "slightlyLow" "adequate" "slightlyHigh" "high" のいずれか
 ・breakdown: 各料理がどの食品群に該当するかの内訳
 ・comment: 上記の一言コメント`;
@@ -59,6 +60,7 @@ const NUTRITION_SYSTEM_PROMPT = `あなたは栄養士のアシスタントで�
 const NUTRITION_ANALYSIS_SCHEMA = {
   type: 'object' as const,
   properties: {
+    photoDescription: { type: 'string' },
     energy: { type: 'string', enum: ['low', 'slightlyLow', 'adequate', 'slightlyHigh', 'high'] },
     protein: { type: 'string', enum: ['low', 'slightlyLow', 'adequate', 'slightlyHigh', 'high'] },
     vegetable: { type: 'string', enum: ['low', 'slightlyLow', 'adequate', 'slightlyHigh', 'high'] },
@@ -79,7 +81,7 @@ const NUTRITION_ANALYSIS_SCHEMA = {
     },
     comment: { type: 'string' },
   },
-  required: ['energy', 'protein', 'vegetable', 'breakdown', 'comment'],
+  required: ['photoDescription', 'energy', 'protein', 'vegetable', 'breakdown', 'comment'],
   additionalProperties: false,
 };
 
@@ -136,15 +138,19 @@ export async function POST(request: Request) {
   const openai = new OpenAI({ apiKey });
 
   try {
-    const userContent: OpenAI.Chat.ChatCompletionContentPart[] = [
-      { type: 'text', text: `料理・食品: ${dishes.join('、')}` },
-    ];
+    const userContent: OpenAI.Chat.ChatCompletionContentPart[] = [];
+    if (photoBase64) {
+      userContent.push({ type: 'image_url', image_url: { url: `data:${mimeType};base64,${photoBase64}` } });
+      userContent.push({
+        type: 'text',
+        text: `ユーザーが入力した料理名（参考程度。写真と食い違う場合は無視して写真を優先すること）: ${dishes.join('、')}`,
+      });
+    } else {
+      userContent.push({ type: 'text', text: `料理・食品: ${dishes.join('、')}` });
+    }
     const recentMealsText = formatRecentMeals(recentMeals);
     if (recentMealsText) {
       userContent.push({ type: 'text', text: recentMealsText });
-    }
-    if (photoBase64) {
-      userContent.push({ type: 'image_url', image_url: { url: `data:${mimeType};base64,${photoBase64}` } });
     }
 
     const response = await createJapaneseChatCompletion(openai, {

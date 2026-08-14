@@ -108,8 +108,8 @@ export async function deleteDecidedMenu(id: string): Promise<void> {
 
 export type AggregatedIngredient = { name: string; amounts: string[] };
 
-/** Merges ingredients across all of a menu's dishes, combining amounts for names that repeat across dishes. */
-export function aggregateMenuIngredients(menu: DecidedMenu): AggregatedIngredient[] {
+/** Merges ingredients across all of a set of dishes, combining amounts for names that repeat across dishes. */
+export function aggregateMenuIngredients(dishes: DecidedDish[]): AggregatedIngredient[] {
   const amountsByName = new Map<string, string[]>();
 
   const addIngredient = ({ name, amount }: DecidedMenuIngredient) => {
@@ -120,7 +120,7 @@ export function aggregateMenuIngredients(menu: DecidedMenu): AggregatedIngredien
     amountsByName.set(key, amounts);
   };
 
-  for (const dish of menu.dishes ?? []) {
+  for (const dish of dishes ?? []) {
     (dish.basicIngredients ?? []).forEach(addIngredient);
     (dish.seasoningGroups ?? []).forEach((group) => group.items.forEach(addIngredient));
   }

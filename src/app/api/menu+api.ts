@@ -228,13 +228,20 @@ function buildFinalText(dishes: FinalDish[], plainStaple?: string, people?: stri
 
 const CUISINE_STYLES = ['和食', '洋食', '中華', 'エスニック', 'ジャンルにこだわらない自由な発想'];
 
+// Without this, "何も入力しない" requests (no mood/ingredients to react to) tend to collapse onto
+// the same handful of dishes every time (e.g. always ガパオライス) since the model has nothing else
+// to differentiate on. Always rolling a format hint — not just the 25%-chance creativity line —
+// gives every request its own concrete steer even when the user context is otherwise blank.
+const DISH_FORMATS = ['丼もの', '麺類', 'カレー', '焼き物', '炒め物', '煮物', '揚げ物', 'オーブン・グラタン料理', '和え物・サラダ中心', 'スープ・鍋物'];
+
 function buildVarietyHint(): string {
   const isCreative = Math.random() < 0.25;
   const style = CUISINE_STYLES[Math.floor(Math.random() * CUISINE_STYLES.length)];
+  const format = DISH_FORMATS[Math.floor(Math.random() * DISH_FORMATS.length)];
   const creativityLine = isCreative
     ? '今回は定番から少し外れた、個性的・オリジナリティのある献立を考えてください（ただし家庭で実際に無理なく作れる自然な組み合わせにすること）。'
     : '今回は定番で作りやすい家庭料理にしてください。';
-  return `${creativityLine}\n参考ジャンル: ${style}（絶対ではなく、あくまで参考程度）\n同じ条件でも毎回違う献立を考え、同じ料理ばかりを繰り返し提案しないでください。`;
+  return `${creativityLine}\n参考ジャンル: ${style}（絶対ではなく、あくまで参考程度）\n参考の料理形式: ${format}（絶対ではなく、あくまで参考程度。ユーザーの気分・食材の指定と矛盾する場合はそちらを優先すること）\n同じ条件でも毎回違う献立を考え、同じ料理ばかりを繰り返し提案しないでください。特に、何も入力がない場合に思考停止で同じ定番料理（丼もの・エスニック系の一品料理など）ばかりを選ぶのは避けてください。`;
 }
 
 function buildFridgeHint(): string {

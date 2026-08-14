@@ -127,8 +127,13 @@ export default function FoodPreferencesScreen() {
               アレルギー
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              登録した品目は献立を考えるときに避けてもらえるよ
+              登録した食材を使わない献立を考えるよ！
             </ThemedText>
+            <ThemedView type="backgroundElement" style={styles.disclaimerBox}>
+              <ThemedText type="small" themeColor="textSecondary">
+                このアプリの献立提案はAIによるものです。アレルギーのある食材については、必ずご自身の目で原材料・成分表示をご確認のうえ調理してください。
+              </ThemedText>
+            </ThemedView>
 
             <View style={styles.chipRow}>
               {favoriteAllergens.map((allergen) => (
@@ -182,6 +187,10 @@ const styles = StyleSheet.create({
   sectionHeading: {
     fontSize: 20,
     lineHeight: 26,
+  },
+  disclaimerBox: {
+    padding: Spacing.three,
+    borderRadius: Spacing.three,
   },
   chipRow: {
     flexDirection: 'row',

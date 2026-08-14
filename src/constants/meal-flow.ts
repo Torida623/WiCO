@@ -127,18 +127,26 @@ export const COOKING_TIME_OPTIONS: {
   },
 ];
 
-export const SHOPPING_OPTIONS: { value: 'yes' | 'no'; label: string; image: ImageSource; imageAspectRatio: number }[] = [
+export const SHOPPING_OPTIONS: {
+  value: 'yes' | 'no';
+  label: string;
+  image: ImageSource;
+  imageAspectRatio: number;
+  imageScale: number;
+}[] = [
   {
     value: 'yes',
     label: '行けます',
     image: require('@/assets/images/ui/shopping-available-button.png'),
     imageAspectRatio: 943 / 344,
+    imageScale: 0.78,
   },
   {
     value: 'no',
     label: '行けません',
     image: require('@/assets/images/ui/shopping-unavailable-button.png'),
     imageAspectRatio: 942 / 345,
+    imageScale: 0.78,
   },
 ];
 
@@ -183,11 +191,14 @@ export function getNextStep(current: StepId, answers: Answers): StepId {
     case 'entryPoint':
       return 'people';
     case 'people':
+      // 「おまかせ」は丸ごとAIに任せる体験にするため、調理時間・アレルギー確認・気分をまとめて飛ばして
+      // 食材ステップへ直行する（アレルギー・苦手食材は登録済みの情報をコード側で自動的に引き継ぐ）。
+      if (answers.entryPoint === 'aiRecommend') return 'ingredients';
       return answers.entryPoint === 'breakfast' || answers.entryPoint === 'lunch' ? 'allergy' : 'cookingTime';
     case 'cookingTime':
       return 'allergy';
     case 'allergy':
-      return 'mood';
+      return answers.entryPoint === 'aiRecommend' ? 'ingredients' : 'mood';
     case 'mood':
       return 'ingredients';
     case 'ingredients':

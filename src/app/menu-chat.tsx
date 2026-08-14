@@ -52,6 +52,7 @@ import { DecidedDish, saveDecidedMenu } from '@/lib/decided-menus';
 import { listAllergyFavorites, listDislikedIngredients, setAllergyFavorite } from '@/lib/food-preferences';
 import { getKitchenMemory } from '@/lib/kitchen-memory';
 import { summarizeRecentMealsForPrompt } from '@/lib/meal-records';
+import { buildRecipeTagChips } from '@/lib/recipe-tags';
 import { listRecipes, SavedRecipe } from '@/lib/recipes';
 
 /** Labels sourced from the official ALLERGENS list, used to split the allergy-step's checked chips back
@@ -77,6 +78,40 @@ const PEOPLE_INPUT_FRAME_ASPECT_RATIO = 1846 / 286;
 // once the field is focused or has real text, to keep that art from showing through the cursor/typed
 // input — otherwise the frame is untouched original art.
 const PEOPLE_INPUT_TEXT_PATCH_FILL_COLOR = 'rgb(254, 250, 240)';
+
+const MOOD_BUTTON_IMAGE = require('@/assets/images/ui/menu-mood-button.png');
+const MOOD_BUTTON_ASPECT_RATIO = 1449 / 349;
+// Same idea as PEOPLE_INPUT above: the art already draws the "今日の気分" placeholder, so the patch
+// only needs to appear once a mood is actually picked.
+const MOOD_BUTTON_FILL_COLOR = 'rgb(255, 249, 231)';
+const MOOD_BUTTON_TEXT_PATCH = { top: '15%', left: '44.9%', width: '38%', height: '70%' } as const;
+
+const RECIPE_BUTTON_IMAGE = require('@/assets/images/ui/menu-recipe-button.png');
+const RECIPE_BUTTON_ASPECT_RATIO = 1467 / 343;
+
+// Static-label trigger (opens the allergy picker) — the baked-in "アレルギー食材を追加" text never
+// needs to change, so this is just an image button, no text patch.
+const ALLERGY_ADD_BUTTON_IMAGE = require('@/assets/images/ui/allergy-add-button.png');
+const ALLERGY_ADD_BUTTON_ASPECT_RATIO = 1407 / 250;
+
+const DISLIKED_INPUT_BUTTON_IMAGE = require('@/assets/images/ui/disliked-input-button.png');
+const DISLIKED_INPUT_BUTTON_ASPECT_RATIO = 1953 / 246;
+const DISLIKED_INPUT_TEXT_PATCH_FILL_COLOR = 'rgb(254, 252, 248)';
+const DISLIKED_INPUT_TEXT_BOX = { top: '16.3%', left: '10.3%', width: '77.8%', height: '69.1%' } as const;
+
+// Static-label trigger (switches to FridgeScanPanel) — no text patch needed, same as ALLERGY_ADD above.
+const FRIDGE_VIEW_BUTTON_IMAGE = require('@/assets/images/ui/fridge-view-button.png');
+const FRIDGE_VIEW_BUTTON_ASPECT_RATIO = 1320 / 394;
+
+const INGREDIENTS_INPUT_BUTTON_IMAGE = require('@/assets/images/ui/ingredients-input-button.png');
+const INGREDIENTS_INPUT_BUTTON_ASPECT_RATIO = 1400 / 230;
+const INGREDIENTS_INPUT_TEXT_PATCH_FILL_COLOR = 'rgb(253, 251, 243)';
+const INGREDIENTS_INPUT_TEXT_BOX = { top: '10.9%', left: '4.3%', width: '56.4%', height: '78.3%' } as const;
+
+const BREAKFAST_INGREDIENTS_INPUT_BUTTON_IMAGE = require('@/assets/images/ui/breakfast-ingredients-input-button.png');
+const BREAKFAST_INGREDIENTS_INPUT_BUTTON_ASPECT_RATIO = 1179 / 221;
+const BREAKFAST_INGREDIENTS_INPUT_TEXT_PATCH_FILL_COLOR = 'rgb(254, 252, 240)';
+const BREAKFAST_INGREDIENTS_INPUT_TEXT_BOX = { top: '9%', left: '3.4%', width: '72.9%', height: '81.4%' } as const;
 const PEOPLE_INPUT_TEXT_BOX = { top: '14%', left: '8%', width: '84%', height: '73%' } as const;
 
 const MENU_FETCH_TIMEOUT_MS = 30_000;
@@ -201,7 +236,7 @@ type Message =
       text: string;
       mascotPose?: MascotPose;
     }
-  | { id: string; kind: 'book'; sender: 'ai'; bookContent: string }
+  | { id: string; kind: 'book'; sender: 'ai'; bookContent: string; dishes: DecidedDish[] }
   | { id: string; kind: 'plate' }
   | { id: string; kind: 'fridgeScan' };
 
@@ -270,6 +305,8 @@ export default function MealChatScreen() {
   const [pinnedDish, setPinnedDish] = useState<PinnedDish | null>(null);
   const [showRecipePicker, setShowRecipePicker] = useState(false);
   const [savedRecipesForPicker, setSavedRecipesForPicker] = useState<SavedRecipe[]>([]);
+  const [fridgeScanFromIngredients, setFridgeScanFromIngredients] = useState(false);
+  const [isAllergyInputFocused, setIsAllergyInputFocused] = useState(false);
   // Kept mounted (fading out on top of the book) after `currentMessage` has already moved on to
   // 'book', so the plate's fade and the background's book-prop crossfade run at the same time
   // instead of one waiting for the other to finish first.
@@ -351,8 +388,8 @@ export default function MealChatScreen() {
     if (sender === 'ai') setMascotPose(pose);
   }
 
-  function showBookMessage(bookContent: string) {
-    setCurrentMessage({ id: nextMessageId(), kind: 'book', sender: 'ai', bookContent });
+  function showBookMessage(bookContent: string, dishes: DecidedDish[]) {
+    setCurrentMessage({ id: nextMessageId(), kind: 'book', sender: 'ai', bookContent, dishes });
   }
 
   function showPlateMessage() {
@@ -362,6 +399,24 @@ export default function MealChatScreen() {
 
   function showFridgeScanMessage() {
     setCurrentMessage({ id: nextMessageId(), kind: 'fridgeScan' });
+  }
+
+  // 「冷蔵庫を見る」button on the manual ingredients step: unlike the entryPoint==='fridge' path
+  // (which reaches fridgeScan via advance()/handleBack() and so has real stepHistory to fall back
+  // on), this jumps into fridgeScan mid-step without pushing history — so its own back button needs
+  // to return to the ingredients text screen directly instead of going through handleBack().
+  function handleOpenFridgeScanFromIngredients() {
+    setFridgeScanFromIngredients(true);
+    showFridgeScanMessage();
+  }
+
+  function handleFridgeScanBack() {
+    if (fridgeScanFromIngredients) {
+      setFridgeScanFromIngredients(false);
+      showMessage('ai', getStepMessage('ingredients', answers));
+      return;
+    }
+    handleBack();
   }
 
   async function getFinalDetails(
@@ -453,7 +508,7 @@ export default function MealChatScreen() {
           // keeping the plate mounted as a fading overlay until its animation finishes.
           setShowPlateOverlay(true);
           plateOpacity.value = withTiming(0, { duration: PLATE_FADE_DURATION_MS });
-          showBookMessage(bookContent);
+          showBookMessage(bookContent, dishes);
           setTimeout(() => setShowPlateOverlay(false), PLATE_FADE_DURATION_MS);
         }, 2000 - PLATE_FADE_DURATION_MS);
         return;
@@ -463,6 +518,7 @@ export default function MealChatScreen() {
       await new Promise((resolve) => setTimeout(resolve, delay));
 
       if (next === 'ingredients' && newAnswers.entryPoint === 'fridge') {
+        setFridgeScanFromIngredients(false);
         showFridgeScanMessage();
         return;
       }
@@ -493,12 +549,14 @@ export default function MealChatScreen() {
     setTemperatureTag(null);
     setFreeMoodValue('');
     setAllergyValue('');
+    setIsAllergyInputFocused(false);
     setShowMoodTray(false);
     setShowRevisionInput(false);
     setPinnedDish(null);
     setShowRecipePicker(false);
 
     if (previous.step === 'ingredients' && previous.answers.entryPoint === 'fridge') {
+      setFridgeScanFromIngredients(false);
       showFridgeScanMessage();
       return;
     }
@@ -513,7 +571,19 @@ export default function MealChatScreen() {
   function handlePeopleSubmit() {
     const value = textValue.trim();
     if (!value) return;
-    advance({ ...answers, people: value }, `${value}人分`);
+    let nextAnswers = { ...answers, people: value };
+    if (answers.entryPoint === 'aiRecommend') {
+      // The allergy step is skipped for this entry point (see getNextStep), so carry the
+      // already-registered profile allergens/disliked-foods over silently instead — same values
+      // handleAllergySubmit would have derived from the (all pre-checked) chips on that screen.
+      const checkedProfileList = profileAllergyItems.filter((item) => checkedProfileItems[item]);
+      nextAnswers = {
+        ...nextAnswers,
+        allergens: checkedProfileList.filter((item) => ALLERGEN_LABEL_SET.has(item)).join('、'),
+        dislikedFoods: checkedProfileList.filter((item) => !ALLERGEN_LABEL_SET.has(item)).join('、'),
+      };
+    }
+    advance(nextAnswers, `${value}人分`);
     setTextValue('');
   }
 
@@ -538,6 +608,7 @@ export default function MealChatScreen() {
     const display = [...checkedProfileList, freeText].filter(Boolean).join('、');
     advance({ ...answers, allergens, dislikedFoods }, display || '（特になし）');
     setAllergyValue('');
+    setIsAllergyInputFocused(false);
   }
 
   function handleMoodSubmit() {
@@ -600,6 +671,7 @@ export default function MealChatScreen() {
     setTemperatureTag(null);
     setFreeMoodValue('');
     setAllergyValue('');
+    setIsAllergyInputFocused(false);
     setShowRevisionInput(false);
     setShowMoodTray(false);
     setShowingRecipeDetail(false);
@@ -644,24 +716,22 @@ export default function MealChatScreen() {
               <ScrollView contentContainerStyle={styles.messageScrollContent} showsVerticalScrollIndicator={false}>
                 <ChatBubble sender="ai" text="…" variant="blob" />
               </ScrollView>
-            ) : currentMessage.kind === 'plate' ? (
-              <Animated.View style={[styles.plateContent, plateStyle]}>
-                <Image source={MENU_DECIDED_PLATE_IMAGE} style={styles.plateImage} contentFit="contain" />
-              </Animated.View>
-            ) : currentMessage.kind === 'book' ? (
+            ) : currentMessage.kind === 'plate' ? null : currentMessage.kind === 'book' ? (
               <View style={styles.messageContent}>
-                <RecipeBook content={currentMessage.bookContent} onRestart={handleRestart} />
+                <RecipeBook content={currentMessage.bookContent} dishes={currentMessage.dishes} onRestart={handleRestart} />
               </View>
             ) : currentMessage.kind === 'fridgeScan' ? (
-              <FridgeScanPanel onConfirm={handleFridgeIngredientsConfirm} onBack={handleBack} />
+              <FridgeScanPanel onConfirm={handleFridgeIngredientsConfirm} onBack={handleFridgeScanBack} />
             ) : (
               <ScrollView contentContainerStyle={styles.messageScrollContent} showsVerticalScrollIndicator={false}>
                 <ChatBubble sender={currentMessage.sender} text={currentMessage.text} style={styles.dialogueOffset} />
               </ScrollView>
             )}
 
-            {showPlateOverlay && (
-              <Animated.View style={[styles.plateContent, styles.plateOverlay, plateStyle]} pointerEvents="none">
+            {(currentMessage.kind === 'plate' || showPlateOverlay) && (
+              <Animated.View
+                style={[styles.plateContent, styles.plateOverlay, plateStyle]}
+                pointerEvents={currentMessage.kind === 'plate' ? undefined : 'none'}>
                 <Image source={MENU_DECIDED_PLATE_IMAGE} style={styles.plateImage} contentFit="contain" />
               </Animated.View>
             )}
@@ -747,60 +817,120 @@ export default function MealChatScreen() {
             )}
 
             {step === 'ingredients' && (
-              <TextRow
-                value={textValue}
-                onChangeText={setTextValue}
-                onSubmit={handleIngredientsSubmit}
-                onBack={handleBack}
-                placeholder={
-                  answers.entryPoint === 'breakfast' ? '例: 卵、食パン、ヨーグルト' : '例: 鶏胸肉、キャベツ（任意）'
-                }
-              />
+              <View style={styles.ingredientsStep}>
+                <Pressable onPress={handleOpenFridgeScanFromIngredients}>
+                  {({ pressed }) => (
+                    <Image
+                      source={FRIDGE_VIEW_BUTTON_IMAGE}
+                      style={[
+                        styles.textInputWrapperStacked,
+                        styles.fridgeViewButton,
+                        { aspectRatio: FRIDGE_VIEW_BUTTON_ASPECT_RATIO },
+                        pressed && styles.pressed,
+                      ]}
+                      contentFit="fill"
+                    />
+                  )}
+                </Pressable>
+                {answers.entryPoint === 'breakfast' ? (
+                  <TextRow
+                    value={textValue}
+                    onChangeText={setTextValue}
+                    onSubmit={handleIngredientsSubmit}
+                    onBack={handleBack}
+                    placeholder="例: 卵、食パン、ヨーグルト"
+                    centered
+                    frameImage={BREAKFAST_INGREDIENTS_INPUT_BUTTON_IMAGE}
+                    frameAspectRatio={BREAKFAST_INGREDIENTS_INPUT_BUTTON_ASPECT_RATIO}
+                    framePatchBox={BREAKFAST_INGREDIENTS_INPUT_TEXT_BOX}
+                    framePatchFillColor={BREAKFAST_INGREDIENTS_INPUT_TEXT_PATCH_FILL_COLOR}
+                    frameStyle={styles.ingredientsInputButton}
+                  />
+                ) : (
+                  <TextRow
+                    value={textValue}
+                    onChangeText={setTextValue}
+                    onSubmit={handleIngredientsSubmit}
+                    onBack={handleBack}
+                    placeholder="例: 鶏胸肉、キャベツ"
+                    centered
+                    frameImage={INGREDIENTS_INPUT_BUTTON_IMAGE}
+                    frameAspectRatio={INGREDIENTS_INPUT_BUTTON_ASPECT_RATIO}
+                    framePatchBox={INGREDIENTS_INPUT_TEXT_BOX}
+                    framePatchFillColor={INGREDIENTS_INPUT_TEXT_PATCH_FILL_COLOR}
+                    frameStyle={styles.ingredientsInputButton}
+                  />
+                )}
+              </View>
             )}
 
             {step === 'allergy' && (
               <View style={styles.dualTextContainer}>
-                <View style={styles.allergyChipRow}>
-                  {profileAllergyItems.map((item) => {
-                    const checked = checkedProfileItems[item];
-                    return (
-                      <Pressable key={item} onPress={() => toggleProfileAllergyItem(item)}>
-                        {({ pressed }) => (
-                          <ThemedView
-                            type={checked ? 'accent' : 'backgroundElement'}
-                            style={[styles.allergyChip, pressed && styles.pressed]}>
-                            <ThemedText type="small" themeColor={checked ? 'background' : 'textSecondary'}>
-                              {item}
-                            </ThemedText>
-                          </ThemedView>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                  <Pressable
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setShowAllergyPicker(true);
-                    }}>
-                    {({ pressed }) => (
-                      <ThemedView type="backgroundElement" style={[styles.allergyChip, pressed && styles.pressed]}>
-                        <ThemedText type="small" themeColor="textSecondary">
-                          ＋ アレルギー食材を追加
-                        </ThemedText>
-                      </ThemedView>
-                    )}
-                  </Pressable>
-                </View>
-                <ThemedView type="backgroundElement" style={styles.textInputWrapper}>
-                  <TextInput
-                    value={allergyValue}
-                    onChangeText={setAllergyValue}
-                    onFocus={() => setShowAllergyPicker(false)}
-                    placeholder="苦手食材を追加"
-                    placeholderTextColor={theme.textSecondary}
-                    style={[styles.textInput, styles.textInputCentered, { color: theme.text }]}
+                {profileAllergyItems.length > 0 && (
+                  <View style={styles.allergyChipRow}>
+                    {profileAllergyItems.map((item) => {
+                      const checked = checkedProfileItems[item];
+                      return (
+                        <Pressable key={item} onPress={() => toggleProfileAllergyItem(item)}>
+                          {({ pressed }) => (
+                            <ThemedView
+                              type={checked ? 'accent' : 'backgroundElement'}
+                              style={[styles.allergyChip, pressed && styles.pressed]}>
+                              <ThemedText type="small" themeColor={checked ? 'background' : 'textSecondary'}>
+                                {item}
+                              </ThemedText>
+                            </ThemedView>
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+                <Pressable
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setShowAllergyPicker(true);
+                  }}>
+                  {({ pressed }) => (
+                    <Image
+                      source={ALLERGY_ADD_BUTTON_IMAGE}
+                      style={[
+                        styles.textInputWrapperStacked,
+                        styles.allergyAddButton,
+                        { aspectRatio: ALLERGY_ADD_BUTTON_ASPECT_RATIO },
+                        pressed && styles.pressed,
+                      ]}
+                      contentFit="fill"
+                    />
+                  )}
+                </Pressable>
+                <View style={[styles.textInputWrapperStacked, { aspectRatio: DISLIKED_INPUT_BUTTON_ASPECT_RATIO }]}>
+                  <Image
+                    source={DISLIKED_INPUT_BUTTON_IMAGE}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="fill"
                   />
-                </ThemedView>
+                  <View
+                    style={[
+                      styles.inputPatch,
+                      DISLIKED_INPUT_TEXT_BOX,
+                      {
+                        backgroundColor:
+                          allergyValue || isAllergyInputFocused ? DISLIKED_INPUT_TEXT_PATCH_FILL_COLOR : 'transparent',
+                      },
+                    ]}>
+                    <TextInput
+                      value={allergyValue}
+                      onChangeText={setAllergyValue}
+                      onFocus={() => {
+                        setShowAllergyPicker(false);
+                        setIsAllergyInputFocused(true);
+                      }}
+                      onBlur={() => setIsAllergyInputFocused(false)}
+                      style={[styles.textInput, styles.textInputCentered, { color: theme.text }]}
+                    />
+                  </View>
+                </View>
                 <View style={styles.moodButtonRow}>
                   <BackButton onPress={handleBack} />
                   <SendButton onPress={handleAllergySubmit} />
@@ -813,38 +943,61 @@ export default function MealChatScreen() {
                 {!showMoodTray && (
                   <>
                     <Pressable onPress={() => setShowMoodTray((current) => !current)}>
-                      {({ pressed }) => (
-                        <ThemedView
-                          type="backgroundElement"
-                          style={[styles.textInputWrapper, pressed && styles.pressed]}>
-                          <ThemedText
-                            style={[styles.textInput, styles.textInputCentered]}
-                            themeColor={
-                              genreTag || formatTag || tasteTag || temperatureTag || freeMoodValue
-                                ? 'text'
-                                : 'textSecondary'
-                            }>
-                            {[genreTag, formatTag, tasteTag, temperatureTag, freeMoodValue.trim()]
-                              .filter(Boolean)
-                              .join('・') || '今日の気分'}
-                          </ThemedText>
-                        </ThemedView>
-                      )}
+                      {({ pressed }) => {
+                        const moodLabel = [genreTag, formatTag, tasteTag, temperatureTag, freeMoodValue.trim()]
+                          .filter(Boolean)
+                          .join('・');
+                        return (
+                          <View
+                            style={[
+                              styles.textInputWrapperStacked,
+                              styles.moodChoiceButton,
+                              { aspectRatio: MOOD_BUTTON_ASPECT_RATIO },
+                              pressed && styles.pressed,
+                            ]}>
+                            <Image source={MOOD_BUTTON_IMAGE} style={StyleSheet.absoluteFillObject} contentFit="fill" />
+                            {moodLabel.length > 0 && (
+                              <View
+                                style={[
+                                  styles.inputPatch,
+                                  MOOD_BUTTON_TEXT_PATCH,
+                                  { backgroundColor: MOOD_BUTTON_FILL_COLOR },
+                                ]}>
+                                <ThemedText
+                                  style={[styles.textInput, styles.textInputCentered]}
+                                  numberOfLines={1}
+                                  ellipsizeMode="tail">
+                                  {moodLabel}
+                                </ThemedText>
+                              </View>
+                            )}
+                          </View>
+                        );
+                      }}
                     </Pressable>
                     <Pressable onPress={handleOpenRecipePicker}>
-                      {({ pressed }) => (
-                        <ThemedView
-                          type="backgroundElement"
-                          style={[styles.textInputWrapper, pressed && styles.pressed]}>
-                          <ThemedText
-                            style={[styles.textInput, styles.textInputCentered]}
-                            themeColor={pinnedDish ? 'text' : 'textSecondary'}>
-                            {pinnedDish
-                              ? `使う：${pinnedDish.course}・${pinnedDish.title}`
-                              : '保存したレシピを使う（任意）'}
-                          </ThemedText>
-                        </ThemedView>
-                      )}
+                      {({ pressed }) =>
+                        pinnedDish ? (
+                          <ThemedView
+                            type="backgroundElement"
+                            style={[styles.textInputWrapper, pressed && styles.pressed]}>
+                            <ThemedText type="small" numberOfLines={1} ellipsizeMode="tail">
+                              {`使う：${pinnedDish.course}・${pinnedDish.title}`}
+                            </ThemedText>
+                          </ThemedView>
+                        ) : (
+                          <Image
+                            source={RECIPE_BUTTON_IMAGE}
+                            style={[
+                              styles.textInputWrapperStacked,
+                              styles.moodChoiceButton,
+                              { aspectRatio: RECIPE_BUTTON_ASPECT_RATIO },
+                              pressed && styles.pressed,
+                            ]}
+                            contentFit="fill"
+                          />
+                        )
+                      }
                     </Pressable>
                     {pinnedDish && (
                       <Pressable onPress={() => setPinnedDish(null)} style={styles.choiceBackRow}>
@@ -966,11 +1119,20 @@ export default function MealChatScreen() {
                         type="backgroundElement"
                         style={[styles.recipePickerRow, pressed && styles.pressed]}>
                         <ThemedText type="smallBold">{recipe.title}</ThemedText>
-                        {recipe.course && (
-                          <ThemedText type="small" themeColor="textSecondary">
-                            {recipe.course}
-                          </ThemedText>
-                        )}
+                        <View style={styles.recipePickerTagWrap}>
+                          {buildRecipeTagChips(recipe).map((chip) => (
+                            <View
+                              key={chip.key}
+                              style={[
+                                styles.recipePickerTagChip,
+                                { backgroundColor: chip.background, borderColor: chip.text },
+                              ]}>
+                              <ThemedText type="small" style={{ color: chip.text }}>
+                                {chip.label}
+                              </ThemedText>
+                            </View>
+                          ))}
+                        </View>
                       </ThemedView>
                     )}
                   </Pressable>
@@ -1019,6 +1181,7 @@ function TextRow({
   frameAspectRatio,
   framePatchBox,
   framePatchFillColor,
+  frameStyle,
 }: {
   value: string;
   onChangeText: (text: string) => void;
@@ -1031,6 +1194,7 @@ function TextRow({
   frameAspectRatio?: number;
   framePatchBox?: { top: DimensionValue; left: DimensionValue; width: DimensionValue; height: DimensionValue };
   framePatchFillColor?: string;
+  frameStyle?: StyleProp<ViewStyle>;
 }) {
   const theme = useTheme();
   const [isFocused, setIsFocused] = useState(false);
@@ -1038,7 +1202,7 @@ function TextRow({
   return (
     <View style={styles.textRowStacked}>
       {frameImage && framePatchBox && framePatchFillColor ? (
-        <View style={[styles.textInputWrapperStacked, { aspectRatio: frameAspectRatio }]}>
+        <View style={[styles.textInputWrapperStacked, { aspectRatio: frameAspectRatio }, frameStyle]}>
           <Image source={frameImage} style={StyleSheet.absoluteFillObject} contentFit="fill" />
           <View
             style={[
@@ -1230,8 +1394,35 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
     marginBottom: Spacing.two,
   },
+  recipePickerTagWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.one,
+  },
+  recipePickerTagChip: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half,
+    borderRadius: Spacing.four,
+    borderWidth: 1,
+  },
   textInputWrapperStacked: {
     alignSelf: 'stretch',
+  },
+  moodChoiceButton: {
+    width: '62%',
+    alignSelf: 'center',
+  },
+  allergyAddButton: {
+    width: '72%',
+    alignSelf: 'center',
+  },
+  fridgeViewButton: {
+    width: '58%',
+    alignSelf: 'center',
+  },
+  ingredientsInputButton: {
+    width: '108%',
+    alignSelf: 'center',
   },
   inputPatch: {
     position: 'absolute',
@@ -1256,6 +1447,9 @@ const styles = StyleSheet.create({
   choiceBackRow: {
     alignItems: 'center',
     marginTop: Spacing.two,
+  },
+  ingredientsStep: {
+    gap: Spacing.half,
   },
   moodButtonRow: {
     flexDirection: 'row',

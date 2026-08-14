@@ -105,7 +105,7 @@ export default function DecidedMenuDetailScreen() {
     ? splitBookContent(extractBookContent(menu.recipeText))
     : { ingredientsText: '', stepsText: '' };
   const hasStructuredDishes = Boolean(menu?.dishes?.length);
-  const menuIngredients = menu ? aggregateMenuIngredients(menu) : [];
+  const menuIngredients = menu ? aggregateMenuIngredients(menu.dishes) : [];
   const availableIngredientNames = menuIngredients.map((i) => i.name).filter((name) => !addedIngredientNames.has(name));
   const allIngredientsChecked =
     availableIngredientNames.length > 0 && availableIngredientNames.every((name) => checkedIngredientNames.has(name));

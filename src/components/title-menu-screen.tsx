@@ -19,6 +19,7 @@ export type TitleMenuScreenProps = {
   onSelectShoppingMemo: () => void;
   onSelectBudget: () => void;
   onSelectRecipeLab: () => void;
+  onSelectPerokokoRoom: () => void;
 };
 
 export function TitleMenuScreen({
@@ -27,6 +28,7 @@ export function TitleMenuScreen({
   onSelectShoppingMemo,
   onSelectBudget,
   onSelectRecipeLab,
+  onSelectPerokokoRoom,
 }: TitleMenuScreenProps) {
   return (
     <View style={styles.flex}>
@@ -72,6 +74,15 @@ export function TitleMenuScreen({
               type="backgroundElement"
               style={[styles.button, styles.secondaryButton, pressed && styles.pressed]}>
               <ThemedText type="subtitle">レシピ研究所</ThemedText>
+            </ThemedView>
+          )}
+        </Pressable>
+        <Pressable onPress={onSelectPerokokoRoom}>
+          {({ pressed }) => (
+            <ThemedView
+              type="backgroundElement"
+              style={[styles.button, styles.secondaryButton, pressed && styles.pressed]}>
+              <ThemedText type="subtitle">ペロココの部屋</ThemedText>
             </ThemedView>
           )}
         </Pressable>

@@ -13,6 +13,9 @@ import Animated, {
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Fonts, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { aggregateMenuIngredients, AggregatedIngredient, DecidedDish } from '@/lib/decided-menus';
+import { addIngredientsToMemo } from '@/lib/shopping-memo';
 
 const CLOSED_BOOK = require('@/assets/images/mascot/wico-book-closed.png');
 const OPEN_BOOK_FLAT = require('@/assets/images/mascot/wico-book-open-flat.png');
@@ -26,6 +29,9 @@ const NAV_BUTTON_WIDTH = 140;
 const NAV_BUTTON_HEIGHT = NAV_BUTTON_WIDTH / NAV_IMAGE_ASPECT_RATIO;
 const STEPS_MARKER = '【作り方】';
 const PAGE_CHAR_BUDGET = 170;
+// Large enough to clear the sheet panel's own max-height (70%) off the bottom of any screen size.
+const SHEET_HIDDEN_OFFSET = 700;
+const SHEET_ANIM_DURATION = 320;
 
 function paginateText(text: string, budget: number): string[] {
   const lines = text.split('\n');
@@ -57,17 +63,56 @@ function splitIntoPages(content: string): string[] {
 
 export type RecipeBookProps = {
   content: string;
+  dishes?: DecidedDish[];
   onRestart: () => void;
   restartLabel?: string;
 };
 
-export function RecipeBook({ content, onRestart, restartLabel = 'もう一度考える' }: RecipeBookProps) {
+export function RecipeBook({ content, dishes = [], onRestart, restartLabel = 'もう一度考える' }: RecipeBookProps) {
+  const theme = useTheme();
   const pages = splitIntoPages(content);
+  const menuIngredients: AggregatedIngredient[] = dishes.length > 0 ? aggregateMenuIngredients(dishes) : [];
 
   const [opened, setOpened] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
+  const [shoppingMemoAdded, setShoppingMemoAdded] = useState(false);
+  const [showShoppingMemoSheet, setShowShoppingMemoSheet] = useState(false);
+  const [checkedIngredientNames, setCheckedIngredientNames] = useState<Set<string>>(new Set());
   const pageScrollRef = useRef<ScrollView>(null);
+  const sheetTranslateY = useSharedValue(SHEET_HIDDEN_OFFSET);
+
+  function openShoppingMemoSheet() {
+    setCheckedIngredientNames(new Set(menuIngredients.map((ingredient) => ingredient.name)));
+    setShowShoppingMemoSheet(true);
+    sheetTranslateY.value = withTiming(0, { duration: SHEET_ANIM_DURATION, easing: Easing.out(Easing.quad) });
+  }
+
+  function closeShoppingMemoSheet() {
+    sheetTranslateY.value = withTiming(SHEET_HIDDEN_OFFSET, {
+      duration: SHEET_ANIM_DURATION,
+      easing: Easing.in(Easing.quad),
+    });
+    setTimeout(() => setShowShoppingMemoSheet(false), SHEET_ANIM_DURATION);
+  }
+
+  function toggleIngredientChecked(name: string) {
+    setCheckedIngredientNames((current) => {
+      const next = new Set(current);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
+  async function handleCreateShoppingMemo() {
+    const checked = menuIngredients.filter((ingredient) => checkedIngredientNames.has(ingredient.name));
+    if (checked.length > 0) {
+      await addIngredientsToMemo(checked);
+      setShoppingMemoAdded(true);
+    }
+    closeShoppingMemoSheet();
+  }
 
   const closedOpacity = useSharedValue(0);
   const closedScale = useSharedValue(1);
@@ -147,6 +192,9 @@ export function RecipeBook({ content, onRestart, restartLabel = 'もう一度考
   const hintStyle = useAnimatedStyle(() => ({
     opacity: hintOpacity.value,
   }));
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: sheetTranslateY.value }],
+  }));
 
   const hasMorePages = pageIndex < pages.length - 1;
 
@@ -211,6 +259,82 @@ export function RecipeBook({ content, onRestart, restartLabel = 'もう一度考
             </View>
           </View>
         )}
+      </View>
+
+      {opened && pageIndex === 0 && dishes.length > 0 && (
+        <View style={styles.shoppingMemoOverlay}>
+          <Pressable onPress={openShoppingMemoSheet} disabled={shoppingMemoAdded}>
+            {({ pressed }) => (
+              <ThemedView
+                type="accent"
+                style={[styles.restartButton, (pressed || shoppingMemoAdded) && styles.pressed]}>
+                <ThemedText type="smallBold" themeColor="background">
+                  {shoppingMemoAdded ? 'お買い物メモに追加したよ' : 'お買い物メモを作成する'}
+                </ThemedText>
+              </ThemedView>
+            )}
+          </Pressable>
+        </View>
+      )}
+
+      {showShoppingMemoSheet && (
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={closeShoppingMemoSheet} />
+      )}
+      <View style={styles.shoppingMemoSheetOverlay} pointerEvents="box-none">
+        <Animated.View style={sheetStyle}>
+          <ThemedView type="background" style={styles.shoppingMemoSheetPanel}>
+            <View style={styles.sectionHeaderRow}>
+              <ThemedText type="smallBold">お買い物メモに追加する</ThemedText>
+              <Pressable onPress={closeShoppingMemoSheet} hitSlop={8}>
+                <ThemedText type="link" themeColor="accent">
+                  閉じる
+                </ThemedText>
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={styles.shoppingMemoSheetContent}>
+              <View style={styles.checklist}>
+                {menuIngredients.map((ingredient) => {
+                  const checked = checkedIngredientNames.has(ingredient.name);
+                  return (
+                    <Pressable key={ingredient.name} onPress={() => toggleIngredientChecked(ingredient.name)}>
+                      {({ pressed }) => (
+                        <View style={[styles.checklistRow, pressed && styles.pressed]}>
+                          <View
+                            style={[
+                              styles.checkbox,
+                              { borderColor: checked ? theme.accent : theme.textSecondary },
+                              checked && { backgroundColor: theme.accent },
+                            ]}>
+                            {checked && (
+                              <ThemedText type="smallBold" themeColor="background" style={styles.checkboxMark}>
+                                ✓
+                              </ThemedText>
+                            )}
+                          </View>
+                          <ThemedText style={styles.bodyText}>
+                            {ingredient.name}
+                            {ingredient.amounts.length > 0 ? `　${ingredient.amounts.join('、')}` : ''}
+                          </ThemedText>
+                        </View>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+            <Pressable onPress={handleCreateShoppingMemo} disabled={checkedIngredientNames.size === 0}>
+              {({ pressed }) => (
+                <ThemedView
+                  type="accent"
+                  style={[styles.saveButton, (pressed || checkedIngredientNames.size === 0) && styles.pressed]}>
+                  <ThemedText type="smallBold" themeColor="background">
+                    作成
+                  </ThemedText>
+                </ThemedView>
+              )}
+            </Pressable>
+          </ThemedView>
+        </Animated.View>
       </View>
 
       {opened && !hasMorePages && (
@@ -304,6 +428,61 @@ const styles = StyleSheet.create({
     bottom: Spacing.six,
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  shoppingMemoOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: Spacing.six,
+    alignItems: 'center',
+  },
+  shoppingMemoSheetOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    padding: Spacing.three,
+  },
+  shoppingMemoSheetPanel: {
+    maxHeight: '70%',
+    borderRadius: Spacing.four,
+    padding: Spacing.three,
+    gap: Spacing.three,
+  },
+  shoppingMemoSheetContent: {
+    paddingBottom: Spacing.three,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  checklist: {
+    gap: Spacing.two,
+  },
+  checklistRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: Spacing.half,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxMark: {
+    fontSize: 13,
+    lineHeight: 15,
+  },
+  bodyText: {
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  saveButton: {
+    paddingVertical: Spacing.three,
+    borderRadius: Spacing.three,
+    alignItems: 'center',
   },
   restartButton: {
     paddingHorizontal: Spacing.four,

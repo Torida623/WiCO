@@ -127,6 +127,13 @@ function formatEatenAt(eatenAt: string): string {
   return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
+const DISH_NAME_MAX_CHARS = 13;
+
+function truncateDishName(text: string): string {
+  if (text.length <= DISH_NAME_MAX_CHARS) return text;
+  return `${text.slice(0, DISH_NAME_MAX_CHARS)}…`;
+}
+
 export default function MealLogHistoryScreen() {
   const [records, setRecords] = useState<MealRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -211,8 +218,8 @@ export default function MealLogHistoryScreen() {
                           </ThemedText>
                         )}
                       </View>
-                      <ThemedText type="smallBold" numberOfLines={2}>
-                        {item.dishes.length > 0 ? item.dishes.join('、') : '（料理名なし）'}
+                      <ThemedText type="smallBold" numberOfLines={1}>
+                        {item.dishes.length > 0 ? truncateDishName(item.dishes.join('、')) : '（料理名なし）'}
                       </ThemedText>
                     </View>
                   </View>

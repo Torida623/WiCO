@@ -11,7 +11,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { getMealRecord, MealRecord, MealType, updateMealRecord } from '@/lib/meal-records';
+import { getMealRecord, MealRecord, updateMealRecord } from '@/lib/meal-records';
 import { fetchRecipeTags, saveAiRecipe } from '@/lib/recipes';
 
 const KITCHEN_BACKGROUND = require('@/assets/images/meal-log/kitchen-bg.jpg');
@@ -21,18 +21,6 @@ const FOOD_GROUP_COLORS = {
   protein: '#E27058',
   vegetable: '#7FA65C',
 } as const;
-
-const MEAL_TYPE_LABELS: Record<MealType, string> = {
-  breakfast: '朝ごはん',
-  lunch: '昼ごはん',
-  dinner: '夜ごはん',
-  snack: 'おやつ',
-};
-
-function formatEatenAt(eatenAt: string): string {
-  const date = new Date(eatenAt);
-  return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
 
 export default function MealRecordDetailScreen() {
   const theme = useTheme();
@@ -90,7 +78,7 @@ export default function MealRecordDetailScreen() {
       <Image source={KITCHEN_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="記録" onBack={() => router.back()} />
+        <ScreenHeader onBack={() => router.back()} />
 
         {isLoading && (
           <View style={styles.centered}>
@@ -110,53 +98,44 @@ export default function MealRecordDetailScreen() {
           <ScrollView contentContainerStyle={styles.content}>
             <Image source={{ uri: record.photoUri }} style={styles.photo} contentFit="cover" />
 
-            <View style={styles.metaRow}>
-              <ThemedText type="small" themeColor="textSecondary">
-                {formatEatenAt(record.eatenAt)}
+            <ThemedView type="background" style={styles.formCard}>
+              <ThemedText type="default" style={styles.dishTitle}>
+                {record.dishes.length > 0 ? record.dishes.join('、') : '（料理名なし）'}
               </ThemedText>
-              {record.mealType && (
-                <ThemedText type="small" themeColor="textSecondary">
-                  {MEAL_TYPE_LABELS[record.mealType]}
-                </ThemedText>
+
+              {record.memo && (
+                <View style={styles.section}>
+                  <ThemedText type="smallBold">メモ</ThemedText>
+                  <ThemedText type="small">{record.memo}</ThemedText>
+                </View>
               )}
-            </View>
 
-            <ThemedText type="subtitle">
-              {record.dishes.length > 0 ? record.dishes.join('、') : '（料理名なし）'}
-            </ThemedText>
-
-            {record.memo && (
-              <View style={styles.section}>
-                <ThemedText type="smallBold">メモ</ThemedText>
-                <ThemedText type="small">{record.memo}</ThemedText>
-              </View>
-            )}
-
-            {record.nutritionBalance && (
-              <View style={styles.section}>
-                <ThemedText type="smallBold">栄養バランス</ThemedText>
-                <NutritionMeter
-                  label="エネルギーになる食品"
-                  level={record.nutritionBalance.energy}
-                  color={FOOD_GROUP_COLORS.energy}
-                />
-                <NutritionMeter
-                  label="血や肉をつくる食品"
-                  level={record.nutritionBalance.protein}
-                  color={FOOD_GROUP_COLORS.protein}
-                />
-                <NutritionMeter
-                  label="体の調子を整える食品"
-                  level={record.nutritionBalance.vegetable}
-                  color={FOOD_GROUP_COLORS.vegetable}
-                />
-                {record.nutritionBalance.comment && (
-                  <ThemedView type="backgroundElement" style={styles.commentBubble}>
-                    <ThemedText type="small">{record.nutritionBalance.comment}</ThemedText>
-                  </ThemedView>
-                )}
-              </View>
-            )}
+              {record.nutritionBalance && (
+                <View style={styles.section}>
+                  <ThemedText type="smallBold">栄養バランス</ThemedText>
+                  <NutritionMeter
+                    label="エネルギーになる食品"
+                    level={record.nutritionBalance.energy}
+                    color={FOOD_GROUP_COLORS.energy}
+                  />
+                  <NutritionMeter
+                    label="血や肉をつくる食品"
+                    level={record.nutritionBalance.protein}
+                    color={FOOD_GROUP_COLORS.protein}
+                  />
+                  <NutritionMeter
+                    label="体の調子を整える食品"
+                    level={record.nutritionBalance.vegetable}
+                    color={FOOD_GROUP_COLORS.vegetable}
+                  />
+                  {record.nutritionBalance.comment && (
+                    <ThemedView type="backgroundElement" style={styles.commentBubble}>
+                      <ThemedText type="small">{record.nutritionBalance.comment}</ThemedText>
+                    </ThemedView>
+                  )}
+                </View>
+              )}
+            </ThemedView>
 
             {record.linkedRecipes && record.linkedRecipes.length > 0 && (
               <ThemedView type="background" style={styles.formCard}>
@@ -250,9 +229,10 @@ const styles = StyleSheet.create({
     aspectRatio: 4 / 3,
     borderRadius: Spacing.three,
   },
-  metaRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
+  dishTitle: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: '700',
   },
   section: {
     gap: Spacing.two,

@@ -22,7 +22,7 @@ const SIDE_MENU_ROWS = [
   { label: '料理の思い出', top: '30.1%', height: '7.3%', left: '0%', right: '0%', route: '/meal-log' as Href },
   { label: 'レシピ研究室', top: '40.7%', height: '7.3%', left: '0%', right: '0%', route: '/recipe-lab' as Href },
   { label: 'お買い物ノート', top: '51.2%', height: '7.4%', left: '0%', right: '0%', route: '/budget' as Href },
-  { label: 'ペロココの部屋', top: '61.8%', height: '7.3%', left: '0%', right: '0%', route: undefined },
+  { label: 'ペロココの部屋', top: '61.8%', height: '7.3%', left: '0%', right: '0%', route: '/perokoko-room' as Href },
   { label: 'お知らせ', top: '74.5%', height: '7%', left: '10%', right: '55%', route: undefined },
   { label: '設定', top: '74.5%', height: '7%', left: '50%', right: '10%', route: undefined },
 ] as const;

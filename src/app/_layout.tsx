@@ -66,6 +66,11 @@ const RECIPE_LAB_BGM_VOLUME = 0.4;
 const RECIPE_LAB_BGM_FADE_START_MS = 111_740;
 const RECIPE_LAB_BGM_FADE_IN_MS = 600;
 
+// ペロココの部屋 (マイルーム). Day 1:41 track, night 2:09 track.
+const ROOM_BGM_VOLUME = 0.4;
+const ROOM_DAY_BGM = { source: require('@/assets/audio/perokoko-room-bgm-day.mp3'), fadeStartMs: 98_920, fadeInMs: 600 }; // 1:41 track
+const ROOM_NIGHT_BGM = { source: require('@/assets/audio/perokoko-room-bgm-night.mp3'), fadeStartMs: 127_460, fadeInMs: 600 }; // 2:09 track
+
 type Stage = 'entrance' | 'menu' | 'app';
 
 export default function TabLayout() {
@@ -75,6 +80,7 @@ export default function TabLayout() {
   const daytime = useRef(isDaytime()).current;
   const titleBgm = daytime ? DAY_BGM : NIGHT_BGM;
   const notebookBgm = daytime ? NOTEBOOK_DAY_BGM : NOTEBOOK_NIGHT_BGM;
+  const roomBgm = daytime ? ROOM_DAY_BGM : ROOM_NIGHT_BGM;
   const pathname = usePathname();
 
   // All three loops are created once, right here at the root, the moment the
@@ -121,6 +127,13 @@ export default function TabLayout() {
     RECIPE_LAB_BGM_FADE_START_MS,
     RECIPE_LAB_BGM_FADE_IN_MS,
   );
+  useLoopingBgm(
+    roomBgm.source,
+    ROOM_BGM_VOLUME,
+    stage === 'app' && pathname.startsWith('/perokoko-room'),
+    roomBgm.fadeStartMs,
+    roomBgm.fadeInMs,
+  );
 
   useEffect(() => {
     if (stage === 'app' && pendingRoute) {
@@ -154,6 +167,7 @@ export default function TabLayout() {
             onSelectShoppingMemo={() => transitionTo('app', '/shopping-memo' as Href)}
             onSelectBudget={() => transitionTo('app', '/budget' as Href)}
             onSelectRecipeLab={() => transitionTo('app', '/recipe-lab' as Href)}
+            onSelectPerokokoRoom={() => transitionTo('app', '/perokoko-room' as Href)}
           />
         )}
         {stage === 'app' && <AppTabs />}
