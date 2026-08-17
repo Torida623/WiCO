@@ -13,7 +13,7 @@ import { isDaytime } from '@/constants/time-of-day';
 const BACKGROUND_DAY = require('@/assets/images/perokoko-room/room-bg-day.jpg');
 const BACKGROUND_NIGHT = require('@/assets/images/perokoko-room/room-bg-night.jpg');
 
-/** Shared shell for ペロココの部屋's still-未実装 utilitarian screens (contact/terms/tutorial) — real
+/** Shared shell for ペロココの部屋's still-未実装 utilitarian screens (tutorial) — real
  * content will replace the placeholder body, but the background/header/safe-area shell stays. */
 export function RoomPlaceholderScreen({ title }: { title: string }) {
   const [isDay, setIsDay] = useState(true);

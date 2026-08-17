@@ -6,7 +6,8 @@ const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    storage: AsyncStorage,
+    // SSR時（web static出力のプリレンダリング）はwindowがなくAsyncStorageが例外を投げるため未指定にする
+    storage: typeof window !== 'undefined' ? AsyncStorage : undefined,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,

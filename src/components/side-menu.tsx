@@ -24,7 +24,8 @@ const SIDE_MENU_ROWS = [
   { label: 'お買い物ノート', top: '51.2%', height: '7.4%', left: '0%', right: '0%', route: '/budget' as Href },
   { label: 'ペロココの部屋', top: '61.8%', height: '7.3%', left: '0%', right: '0%', route: '/perokoko-room' as Href },
   { label: 'お知らせ', top: '74.5%', height: '7%', left: '10%', right: '55%', route: undefined },
-  { label: '設定', top: '74.5%', height: '7%', left: '50%', right: '10%', route: undefined },
+  // 「設定」の絵柄のまま、当面は会員プラン（サブスクショップ）への入り口として使う。
+  { label: '設定', top: '74.5%', height: '7%', left: '50%', right: '10%', route: '/shop/subscription' as Href },
 ] as const;
 
 /**

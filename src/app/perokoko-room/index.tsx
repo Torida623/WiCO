@@ -38,8 +38,7 @@ function pickRoomLine(): string {
 }
 
 // Each badge bakes its own label into the art, so no text overlay is needed. Cards share a fixed
-// HEIGHT (not width) so every badge renders at its natural, un-shrunk size — 利用規約's source art
-// is a flatter oval than the other three circular badges, so it ends up a bit wider, not smaller.
+// HEIGHT (not width) so every badge renders at its natural, un-shrunk size.
 type RoomItem = { label: string; image: number; aspectRatio: number; route?: Href; disabled?: boolean };
 
 const ROOM_ITEMS: RoomItem[] = [
@@ -58,14 +57,20 @@ const ROOM_ITEMS: RoomItem[] = [
   {
     label: 'お問い合わせ',
     image: require('@/assets/images/perokoko-room/room-picker-contact.png'),
-    aspectRatio: 1324 / 1188,
+    aspectRatio: 1321 / 1177,
     route: '/perokoko-room/contact' as Href,
   },
   {
     label: '利用規約',
     image: require('@/assets/images/perokoko-room/room-picker-terms.png'),
-    aspectRatio: 1405 / 1119,
+    aspectRatio: 1244 / 1234,
     route: '/perokoko-room/terms' as Href,
+  },
+  {
+    label: 'ショップ',
+    image: require('@/assets/images/perokoko-room/room-picker-shop.png'),
+    aspectRatio: 1228 / 1251,
+    route: '/shop' as Href,
   },
 ];
 
