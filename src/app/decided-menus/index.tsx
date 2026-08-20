@@ -12,16 +12,15 @@ import { ENTRY_POINT_OPTIONS } from '@/constants/meal-flow';
 import { pickPerokokoLine } from '@/constants/perokoko-lines';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { isDaytime } from '@/constants/time-of-day';
+import { CostumeId, getEquippedCostume, getMascotNeutralImage } from '@/lib/costumes';
 import { DecidedMenu, listDecidedMenus } from '@/lib/decided-menus';
 
 const BACKGROUND_DAY = require('@/assets/images/menu/decided-menus-bg.jpg');
 const BACKGROUND_NIGHT = require('@/assets/images/menu/decided-menus-bg-night.jpg');
-const MASCOT_IMAGE_DAY = require('@/assets/images/mascot/perokoko-neutral.png');
-const MASCOT_IMAGE_NIGHT = require('@/assets/images/mascot/perokoko-neutral-night.png');
 const SPEECH_BUBBLE_IMAGE = require('@/assets/images/meal-log/speech-bubble-cloud.png');
 const SPEECH_BUBBLE_ASPECT_RATIO = 1398 / 1125;
-const SHOPPING_MEMO_BUTTON_IMAGE = require('@/assets/images/menu/shopping-memo-button.png');
-const SHOPPING_MEMO_BUTTON_ASPECT_RATIO = 1477 / 171;
+const SHOPPING_MEMO_BUTTON_IMAGE = require('@/assets/images/menu/shopping-list-button.jpg');
+const SHOPPING_MEMO_BUTTON_ASPECT_RATIO = 1481 / 173;
 const PREV_BUTTON_IMAGE = require('@/assets/images/menu/decided-menus-prev-button.png');
 const PREV_BUTTON_ASPECT_RATIO = 505 / 237;
 const NEXT_BUTTON_IMAGE = require('@/assets/images/menu/decided-menus-next-button.png');
@@ -47,6 +46,7 @@ export default function DecidedMenusScreen() {
   const [page, setPage] = useState(0);
   const [mascotLine, setMascotLine] = useState('');
   const [isDay, setIsDay] = useState(true);
+  const [equippedCostume, setEquippedCostume] = useState<CostumeId>('default');
 
   useFocusEffect(
     useCallback(() => {
@@ -60,6 +60,7 @@ export default function DecidedMenusScreen() {
       });
       setMascotLine(pickPerokokoLine());
       setIsDay(isDaytime());
+      getEquippedCostume().then(setEquippedCostume);
       return () => {
         cancelled = true;
       };
@@ -89,7 +90,7 @@ export default function DecidedMenusScreen() {
               <Image
                 source={SHOPPING_MEMO_BUTTON_IMAGE}
                 style={[styles.shoppingMemoButton, pressed && styles.pressed]}
-                contentFit="contain"
+                contentFit="cover"
               />
             )}
           </Pressable>
@@ -155,7 +156,7 @@ export default function DecidedMenusScreen() {
             </View>
           </View>
           <Image
-            source={isDay ? MASCOT_IMAGE_DAY : MASCOT_IMAGE_NIGHT}
+            source={getMascotNeutralImage(equippedCostume, isDay, { allowBackground: true })}
             style={styles.footerMascotImage}
             contentFit="contain"
           />
@@ -184,6 +185,10 @@ const styles = StyleSheet.create({
   shoppingMemoButton: {
     width: '100%',
     aspectRatio: SHOPPING_MEMO_BUTTON_ASPECT_RATIO,
+    // The art is trimmed tight to its pill shape but still has faint white corner
+    // triangles outside the rounded ends; clipping to a stadium radius crops them away.
+    borderRadius: 9999,
+    overflow: 'hidden',
   },
   emptyState: {
     flex: 1,

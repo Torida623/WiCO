@@ -18,11 +18,10 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { isDaytime } from '@/constants/time-of-day';
+import { CostumeId, getEquippedCostume, getMascotNeutralImage } from '@/lib/costumes';
 
 const BACKGROUND_DAY = require('@/assets/images/perokoko-room/room-bg-day.jpg');
 const BACKGROUND_NIGHT = require('@/assets/images/perokoko-room/room-bg-night.jpg');
-const MASCOT_IMAGE_DAY = require('@/assets/images/mascot/perokoko-neutral.png');
-const MASCOT_IMAGE_NIGHT = require('@/assets/images/mascot/perokoko-neutral-night.png');
 const SPEECH_BUBBLE_IMAGE = require('@/assets/images/meal-log/speech-bubble-cloud.png');
 const SPEECH_BUBBLE_ASPECT_RATIO = 1398 / 1125;
 
@@ -46,7 +45,7 @@ const ROOM_ITEMS: RoomItem[] = [
     label: '着替える',
     image: require('@/assets/images/perokoko-room/room-picker-costume.png'),
     aspectRatio: 1358 / 1158,
-    disabled: true,
+    route: '/perokoko-room/costume' as Href,
   },
   {
     label: 'ヘルプ',
@@ -92,6 +91,7 @@ const DISPLAY_ITEMS = Array.from({ length: SET_COUNT }, (_, setIndex) =>
 export default function PerokokoRoomScreen() {
   const [isDay, setIsDay] = useState(true);
   const [mascotLine, setMascotLine] = useState('');
+  const [equippedCostume, setEquippedCostume] = useState<CostumeId>('default');
   const scrollRef = useRef<ScrollView>(null);
   const hasCenteredRef = useRef(false);
 
@@ -99,6 +99,7 @@ export default function PerokokoRoomScreen() {
     useCallback(() => {
       setIsDay(isDaytime());
       setMascotLine(pickRoomLine());
+      getEquippedCostume().then(setEquippedCostume);
     }, []),
   );
 
@@ -153,7 +154,7 @@ export default function PerokokoRoomScreen() {
             </View>
           </View>
           <Image
-            source={isDay ? MASCOT_IMAGE_DAY : MASCOT_IMAGE_NIGHT}
+            source={getMascotNeutralImage(equippedCostume, isDay, { allowBackground: true })}
             style={styles.mascotImage}
             contentFit="contain"
           />
