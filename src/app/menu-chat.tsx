@@ -49,6 +49,7 @@ import { isDaytime } from '@/constants/time-of-day';
 import { useTheme } from '@/hooks/use-theme';
 import { fetchWithTimeout, getApiUrl } from '@/lib/api';
 import { DecidedDish, saveDecidedMenu } from '@/lib/decided-menus';
+import { grantFirstMenuDecidedGift } from '@/lib/first-cooking-gifts';
 import { listAllergyFavorites, listDislikedIngredients, setAllergyFavorite } from '@/lib/food-preferences';
 import { getKitchenMemory } from '@/lib/kitchen-memory';
 import { summarizeRecentMealsForPrompt } from '@/lib/meal-records';
@@ -496,7 +497,9 @@ export default function MealChatScreen() {
             recipeText: content,
             dishes,
             people: newAnswers.people,
-          }).catch((error) => console.error('決定済み献立の保存に失敗:', error));
+          })
+            .then(() => grantFirstMenuDecidedGift())
+            .catch((error) => console.error('決定済み献立の保存に失敗:', error));
         }
         setMascotPose('idea');
         await new Promise((resolve) => setTimeout(resolve, 1500));

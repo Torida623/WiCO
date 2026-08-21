@@ -235,9 +235,9 @@ export function TitleMenuScreen({
 }: TitleMenuScreenProps) {
   const items: MenuItem[] = [
     {
-      key: 'menu-proposal',
-      image: require('@/assets/images/menu/title-menu-badge-menu-proposal.jpg'),
-      onPress: onSelectMenuProposal,
+      key: 'recipe-lab',
+      image: require('@/assets/images/menu/title-menu-badge-recipe-lab.jpg'),
+      onPress: onSelectRecipeLab,
     },
     {
       key: 'meal-memories',
@@ -250,9 +250,9 @@ export function TitleMenuScreen({
       onPress: onSelectBudget,
     },
     {
-      key: 'recipe-lab',
-      image: require('@/assets/images/menu/title-menu-badge-recipe-lab.jpg'),
-      onPress: onSelectRecipeLab,
+      key: 'menu-proposal',
+      image: require('@/assets/images/menu/title-menu-badge-menu-proposal.jpg'),
+      onPress: onSelectMenuProposal,
     },
     {
       key: 'perokoko-room',

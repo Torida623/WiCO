@@ -1,4 +1,6 @@
-import { router } from 'expo-router';
+import { Image } from 'expo-image';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -6,16 +8,33 @@ import { ScreenHeader } from '@/components/screen-header';
 import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { COSTUME_TICKET_PACKS, ShopPack, STAR_COOKIE_PACKS } from '@/constants/shop-items';
+import { NORMAL_TICKET_PACKS, PREMIUM_TICKET_PACKS, ShopPack, STAR_COOKIE_PACKS } from '@/constants/shop-items';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { addTickets, CostumeTier, getTicketBalance, TICKET_LABEL } from '@/lib/costumes';
 
-function handleBuy(pack: ShopPack) {
+const TICKET_IMAGE: Record<string, number> = {
+  'normal-ticket-1': require('@/assets/images/shop/ticket-normal.png'),
+  'normal-ticket-10': require('@/assets/images/shop/ticket-normal-multi.png'),
+  'premium-ticket-1': require('@/assets/images/shop/ticket-premium.png'),
+  'premium-ticket-5': require('@/assets/images/shop/ticket-premium-multi.png'),
+};
+
+const STAR_COOKIE_IMAGE: Record<string, number> = {
+  'star-cookie-1': require('@/assets/images/shop/star-cookie.png'),
+  'star-cookie-10': require('@/assets/images/shop/star-cookie-10.png'),
+  'star-cookie-30': require('@/assets/images/shop/star-cookie-30.png'),
+};
+
+const BACKGROUND = require('@/assets/images/shop/shop-bg.jpg');
+
+function handleStarCookieBuy(pack: ShopPack) {
   Alert.alert('準備中だよ', `${pack.label}の購入機能はもう少し待っててね。`);
 }
 
-function PackRow({ pack }: { pack: ShopPack }) {
+function PackRow({ pack, icon, onBuy }: { pack: ShopPack; icon?: number; onBuy: (pack: ShopPack) => void }) {
   return (
     <ThemedView type="backgroundElement" style={styles.packRow}>
+      {icon && <Image source={icon} style={styles.packIcon} contentFit="contain" />}
       <View style={styles.packInfo}>
         <ThemedText type="smallBold">{pack.label}</ThemedText>
         {pack.note && (
@@ -25,7 +44,7 @@ function PackRow({ pack }: { pack: ShopPack }) {
         )}
       </View>
       <ThemedText type="smallBold">{pack.price}</ThemedText>
-      <Pressable onPress={() => handleBuy(pack)}>
+      <Pressable onPress={() => onBuy(pack)}>
         {({ pressed }) => (
           <ThemedView type="accent" style={[styles.buyButton, pressed && styles.pressed]}>
             <ThemedText type="small" themeColor="background">
@@ -39,14 +58,37 @@ function PackRow({ pack }: { pack: ShopPack }) {
 }
 
 export default function ShopScreen() {
+  const [normalBalance, setNormalBalance] = useState(0);
+  const [premiumBalance, setPremiumBalance] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      getTicketBalance('normal').then(setNormalBalance);
+      getTicketBalance('premium').then(setPremiumBalance);
+    }, []),
+  );
+
+  async function handleTicketBuy(tier: CostumeTier, pack: ShopPack) {
+    if (!pack.amount) {
+      Alert.alert('準備中だよ', `${pack.label}の購入機能はもう少し待っててね。`);
+      return;
+    }
+    // TODO(運営者): 実際の課金(IAP)がまだ繋がっていないため、購入ボタンを押すとテスト用に
+    // その場でチケットを付与している。EAS dev clientでのIAP接続後に差し替える。
+    const next = await addTickets(tier, pack.amount);
+    if (tier === 'normal') setNormalBalance(next);
+    else setPremiumBalance(next);
+    Alert.alert('交換できるよ', `${pack.label}を${pack.amount}枚追加したよ（テスト付与・現在${next}枚）。`);
+  }
+
   return (
     <View style={styles.container}>
-      <ThemedView type="background" style={styles.absoluteFill} />
+      <Image source={BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScreenHeader title="ショップ" onBack={() => router.back()} />
 
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView style={styles.cardArea} contentContainerStyle={styles.content}>
           <View style={styles.section}>
             <ThemedText type="smallBold" style={styles.sectionHeading}>
               星クッキー
@@ -55,19 +97,41 @@ export default function ShopScreen() {
               ペロココとの音声会話で使えるチケットだよ。
             </ThemedText>
             {STAR_COOKIE_PACKS.map((pack) => (
-              <PackRow key={pack.id} pack={pack} />
+              <PackRow key={pack.id} pack={pack} icon={STAR_COOKIE_IMAGE[pack.id]} onBuy={handleStarCookieBuy} />
             ))}
           </View>
 
           <View style={styles.section}>
             <ThemedText type="smallBold" style={styles.sectionHeading}>
-              お着替え券
+              {TICKET_LABEL.normal}
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              ペロココの衣装と交換できるチケットだよ。
+              ペロココのノーマル衣装と交換できるチケットだよ。今の所持数: {normalBalance}枚
             </ThemedText>
-            {COSTUME_TICKET_PACKS.map((pack) => (
-              <PackRow key={pack.id} pack={pack} />
+            {NORMAL_TICKET_PACKS.map((pack) => (
+              <PackRow
+                key={pack.id}
+                pack={pack}
+                icon={TICKET_IMAGE[pack.id]}
+                onBuy={(p) => handleTicketBuy('normal', p)}
+              />
+            ))}
+          </View>
+
+          <View style={styles.section}>
+            <ThemedText type="smallBold" style={styles.sectionHeading}>
+              {TICKET_LABEL.premium}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              ペロココのプレミアム衣装と交換できるチケットだよ。今の所持数: {premiumBalance}枚
+            </ThemedText>
+            {PREMIUM_TICKET_PACKS.map((pack) => (
+              <PackRow
+                key={pack.id}
+                pack={pack}
+                icon={TICKET_IMAGE[pack.id]}
+                onBuy={(p) => handleTicketBuy('premium', p)}
+              />
             ))}
           </View>
         </ScrollView>
@@ -89,8 +153,17 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
+  // 背景アート（assets/images/shop/shop-bg.jpg）に描き込まれた、棚の下の一枚カード部分の
+  // 範囲だけにスクロール領域を収める。数値は背景アート上でのカード枠の実測比率。
+  cardArea: {
+    position: 'absolute',
+    top: '34%',
+    bottom: '12%',
+    left: '7%',
+    right: '6%',
+  },
   content: {
-    padding: Spacing.three,
+    padding: Spacing.two,
     gap: Spacing.five,
   },
   section: {
@@ -106,6 +179,10 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     padding: Spacing.three,
     borderRadius: Spacing.three,
+  },
+  packIcon: {
+    width: 40,
+    height: 40,
   },
   packInfo: {
     flex: 1,

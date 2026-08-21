@@ -22,6 +22,7 @@ import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { fetchWithTimeout, getApiUrl } from '@/lib/api';
+import { grantFirstCookingTrioGift } from '@/lib/first-cooking-gifts';
 import {
   buildLinkedRecipesFromMenu,
   DecidedMenu,
@@ -375,6 +376,7 @@ export default function NewMealRecordScreen() {
       });
       // Fire-and-forget: only worth re-deriving when this save actually adds new evidence.
       if (memo.trim()) refreshKitchenMemory().catch((error) => console.error(error));
+      grantFirstCookingTrioGift('meal-record').catch((error) => console.error(error));
       // The memory's own detail page shows the same nutrition summary and (when this record came
       // from a decided menu) the 研究所にレシピを保存する checklist, so there's no separate "saved"
       // screen to duplicate that here — just hand off to the page that persists.

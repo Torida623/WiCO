@@ -22,6 +22,7 @@ import {
   getDecidedMenu,
   splitBookContent,
 } from '@/lib/decided-menus';
+import { grantFirstCookingTrioGift } from '@/lib/first-cooking-gifts';
 import { addIngredientsToMemo } from '@/lib/shopping-memo';
 
 const BACKGROUND_DAY = require('@/assets/images/menu/decided-menus-detail-bg.jpg');
@@ -99,6 +100,7 @@ export default function DecidedMenuDetailScreen() {
     if (pendingIngredients.length === 0) return;
     await addIngredientsToMemo(pendingIngredients);
     setAddedIngredientNames((current) => new Set([...current, ...pendingIngredients.map((i) => i.name)]));
+    grantFirstCookingTrioGift('shopping-memo').catch((error) => console.error(error));
   }
 
   const { ingredientsText, stepsText } = menu

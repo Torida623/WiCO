@@ -15,6 +15,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { aggregateMenuIngredients, AggregatedIngredient, DecidedDish } from '@/lib/decided-menus';
+import { grantFirstCookingTrioGift } from '@/lib/first-cooking-gifts';
 import { addIngredientsToMemo } from '@/lib/shopping-memo';
 
 const CLOSED_BOOK = require('@/assets/images/mascot/wico-book-closed.png');
@@ -110,6 +111,7 @@ export function RecipeBook({ content, dishes = [], onRestart, restartLabel = 'ã‚
     if (checked.length > 0) {
       await addIngredientsToMemo(checked);
       setShoppingMemoAdded(true);
+      grantFirstCookingTrioGift('shopping-memo').catch((error) => console.error(error));
     }
     closeShoppingMemoSheet();
   }

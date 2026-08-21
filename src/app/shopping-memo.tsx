@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { grantFirstCookingTrioGift } from '@/lib/first-cooking-gifts';
 import {
   addCustomItem,
   clearCheckedItems,
@@ -83,6 +84,7 @@ export default function ShoppingMemoScreen() {
     if (!trimmed) return;
     setCustomItems(await addCustomItem(trimmed));
     setFreeText('');
+    grantFirstCookingTrioGift('shopping-memo').catch((error) => console.error(error));
   }
 
   async function handleRemoveItem(item: DisplayItem) {

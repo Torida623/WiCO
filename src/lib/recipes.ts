@@ -3,6 +3,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 
 import { Course } from '@/constants/meal-flow';
 import { fetchWithTimeout, getApiUrl } from '@/lib/api';
+import { grantFirstCookingTrioGift } from '@/lib/first-cooking-gifts';
 import { ensureAnonSession, getCurrentUserId, supabase } from '@/lib/supabase';
 
 /** A not-yet-saved recipe candidate — the shape decided-menus hands off to a meal record's
@@ -297,6 +298,7 @@ export async function publishRecipe(recipe: SavedRecipe): Promise<void> {
     summary: recipe.summary ?? null,
   });
   if (error) throw error;
+  grantFirstCookingTrioGift('recipe-post').catch((giftError) => console.error(giftError));
 }
 
 export async function listPublicRecipes(): Promise<SavedRecipe[]> {
