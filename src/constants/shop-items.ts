@@ -9,9 +9,9 @@ export type ShopPack = {
 
 /** 星クッキー = 音声案内チケットのマスコット向け呼び名。パック数・価格は暫定（要ローンチ後見直し）。 */
 export const STAR_COOKIE_PACKS: ShopPack[] = [
-  { id: 'star-cookie-1', label: '星クッキー 1個', price: '¥160' },
-  { id: 'star-cookie-10', label: '星クッキー 10個', price: '¥1,400' },
-  { id: 'star-cookie-30', label: '星クッキー 30個', price: '¥3,000', note: '実質月パス相当' },
+  { id: 'star-cookie-1', label: '星クッキー 1個', price: '¥160', amount: 1 },
+  { id: 'star-cookie-10', label: '星クッキー 10個', price: '¥1,400', amount: 10 },
+  { id: 'star-cookie-30', label: '星クッキー 30個', price: '¥3,000', amount: 30 },
 ];
 
 export const NORMAL_TICKET_PACKS: ShopPack[] = [

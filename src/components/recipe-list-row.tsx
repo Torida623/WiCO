@@ -23,6 +23,11 @@ export function RecipeListRow({ recipe, onPress }: { recipe: SavedRecipe; onPres
             <ThemedText type="smallBold" numberOfLines={2}>
               {recipe.title}
             </ThemedText>
+            {recipe.source === 'public' && recipe.authorName && (
+              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                投稿者：{recipe.authorName}
+              </ThemedText>
+            )}
             <View style={styles.tagWrap}>
               {buildRecipeTagChips(recipe).map((chip) => (
                 <View

@@ -95,7 +95,7 @@ export default function RecipeDetailScreen() {
       <View style={[styles.absoluteFill, { backgroundColor: theme.background, opacity: 0.3 }]} />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title={recipe?.title ?? 'レシピ'} onBack={() => router.back()} />
+        <ScreenHeader onBack={() => router.back()} />
 
         {isLoading && (
           <View style={styles.centered}>
@@ -116,7 +116,12 @@ export default function RecipeDetailScreen() {
             {recipe.photoUri && <Image source={{ uri: recipe.photoUri }} style={styles.photo} contentFit="cover" />}
 
             <ThemedView type="background" style={styles.formCard}>
-              <ThemedText type="title">{recipe.title}</ThemedText>
+              <ThemedText type="subtitle" style={styles.titleText}>{recipe.title}</ThemedText>
+              {recipe.source === 'public' && recipe.authorName && (
+                <ThemedText type="small" themeColor="textSecondary">
+                  投稿者：{recipe.authorName}
+                </ThemedText>
+              )}
               {tagChips.length > 0 && (
                 <View style={styles.tagWrap}>
                   {tagChips.map((chip) => (
@@ -220,6 +225,10 @@ const styles = StyleSheet.create({
   },
   heading: {
     fontSize: 15,
+  },
+  titleText: {
+    fontSize: 20,
+    lineHeight: 26,
   },
   bodyText: {
     fontSize: 14,

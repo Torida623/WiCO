@@ -10,9 +10,14 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
 import { EntranceScreen } from '@/components/entrance-screen';
+import { GiftRevealOverlay } from '@/components/gift-reveal-overlay';
+import { OnboardingScreen } from '@/components/onboarding-screen';
 import { TitleMenuScreen } from '@/components/title-menu-screen';
 import { isDaytime } from '@/constants/time-of-day';
 import { useLoopingBgm } from '@/hooks/use-looping-bgm';
+import { grantBirthdayGiftIfEligible } from '@/lib/birthday-gift';
+import { useBgmVolume } from '@/lib/bgm-volume-store';
+import { hasOnboarded } from '@/lib/user-profile';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -68,10 +73,20 @@ const RECIPE_LAB_BGM_FADE_IN_MS = 600;
 
 // ペロココの部屋 (マイルーム). Day 1:41 track, night 2:09 track.
 const ROOM_BGM_VOLUME = 0.4;
-const ROOM_DAY_BGM = { source: require('@/assets/audio/perokoko-room-bgm-day.mp3'), fadeStartMs: 98_920, fadeInMs: 600 }; // 1:41 track
-const ROOM_NIGHT_BGM = { source: require('@/assets/audio/perokoko-room-bgm-night.mp3'), fadeStartMs: 127_460, fadeInMs: 600 }; // 2:09 track
+const ROOM_DAY_BGM = {
+  source: require('@/assets/audio/perokoko-room-bgm-day.mp3'),
+  fadeStartMs: 98_920,
+  fadeInMs: 600,
+  startDelayMs: 1000,
+}; // 1:41 track
+const ROOM_NIGHT_BGM = {
+  source: require('@/assets/audio/perokoko-room-bgm-night.mp3'),
+  fadeStartMs: 127_460,
+  fadeInMs: 600,
+  startDelayMs: 1000,
+}; // 2:09 track
 
-type Stage = 'entrance' | 'menu' | 'app';
+type Stage = 'entrance' | 'onboarding' | 'menu' | 'app';
 
 export default function TabLayout() {
   const [stage, setStage] = useState<Stage>('entrance');
@@ -82,6 +97,7 @@ export default function TabLayout() {
   const notebookBgm = daytime ? NOTEBOOK_DAY_BGM : NOTEBOOK_NIGHT_BGM;
   const roomBgm = daytime ? ROOM_DAY_BGM : ROOM_NIGHT_BGM;
   const pathname = usePathname();
+  const bgmVolumeMultiplier = useBgmVolume();
 
   // All three loops are created once, right here at the root, the moment the
   // app boots — same as the title track always has been. That gives each
@@ -89,10 +105,16 @@ export default function TabLayout() {
   // over the Expo Go dev connection before it's ever asked to play, instead
   // of only starting that download the moment its own screen mounts (which
   // is what caused the audible startup delay/silence on meal-log before).
-  useLoopingBgm(titleBgm.source, TITLE_BGM_VOLUME, stage !== 'app', titleBgm.fadeStartMs, titleBgm.fadeInMs);
+  useLoopingBgm(
+    titleBgm.source,
+    TITLE_BGM_VOLUME * bgmVolumeMultiplier,
+    stage !== 'app',
+    titleBgm.fadeStartMs,
+    titleBgm.fadeInMs,
+  );
   useLoopingBgm(
     notebookBgm.source,
-    NOTEBOOK_BGM_VOLUME,
+    NOTEBOOK_BGM_VOLUME * bgmVolumeMultiplier,
     stage === 'app' && (pathname.startsWith('/decided-menus') || pathname.startsWith('/shopping-memo')),
     notebookBgm.fadeStartMs,
     notebookBgm.fadeInMs,
@@ -100,7 +122,7 @@ export default function TabLayout() {
   );
   useLoopingBgm(
     MEAL_BGM,
-    MEAL_BGM_VOLUME,
+    MEAL_BGM_VOLUME * bgmVolumeMultiplier,
     stage === 'app' &&
       (pathname === '/' || pathname === '/menu-chat' || pathname.startsWith('/food-preferences')),
     MEAL_BGM_FADE_START_MS,
@@ -108,31 +130,32 @@ export default function TabLayout() {
   );
   useLoopingBgm(
     MEAL_LOG_BGM,
-    MEAL_LOG_BGM_VOLUME,
+    MEAL_LOG_BGM_VOLUME * bgmVolumeMultiplier,
     stage === 'app' && pathname.startsWith('/meal-log'),
     MEAL_LOG_BGM_FADE_START_MS,
     MEAL_LOG_BGM_FADE_IN_MS,
   );
   useLoopingBgm(
     BUDGET_BGM,
-    BUDGET_BGM_VOLUME,
+    BUDGET_BGM_VOLUME * bgmVolumeMultiplier,
     stage === 'app' && pathname.startsWith('/budget'),
     BUDGET_BGM_FADE_START_MS,
     BUDGET_BGM_FADE_IN_MS,
   );
   useLoopingBgm(
     RECIPE_LAB_BGM,
-    RECIPE_LAB_BGM_VOLUME,
+    RECIPE_LAB_BGM_VOLUME * bgmVolumeMultiplier,
     stage === 'app' && pathname.startsWith('/recipe-lab'),
     RECIPE_LAB_BGM_FADE_START_MS,
     RECIPE_LAB_BGM_FADE_IN_MS,
   );
   useLoopingBgm(
     roomBgm.source,
-    ROOM_BGM_VOLUME,
+    ROOM_BGM_VOLUME * bgmVolumeMultiplier,
     stage === 'app' && pathname.startsWith('/perokoko-room'),
     roomBgm.fadeStartMs,
     roomBgm.fadeInMs,
+    roomBgm.startDelayMs,
   );
 
   useEffect(() => {
@@ -141,6 +164,17 @@ export default function TabLayout() {
       setPendingRoute(null);
     }
   }, [stage, pendingRoute]);
+
+  useEffect(() => {
+    if (stage === 'app') {
+      grantBirthdayGiftIfEligible().catch((error) => console.error(error));
+    }
+  }, [stage]);
+
+  async function handleEnterFromDoor() {
+    const onboarded = await hasOnboarded();
+    transitionTo(onboarded ? 'menu' : 'onboarding');
+  }
 
   function transitionTo(nextStage: Stage, route?: Href) {
     fadeOpacity.value = withTiming(1, { duration: 1400, easing: Easing.out(Easing.quad) }, (finished) => {
@@ -159,7 +193,8 @@ export default function TabLayout() {
     <GestureHandlerRootView style={styles.flex}>
       <ThemeProvider value={DefaultTheme}>
         <AnimatedSplashOverlay />
-        {stage === 'entrance' && <EntranceScreen isNight={!daytime} onEnter={() => transitionTo('menu')} />}
+        {stage === 'entrance' && <EntranceScreen isNight={!daytime} onEnter={handleEnterFromDoor} />}
+        {stage === 'onboarding' && <OnboardingScreen onComplete={() => transitionTo('menu')} />}
         {stage === 'menu' && (
           <TitleMenuScreen
             onSelectMenuProposal={() => transitionTo('app')}
@@ -172,6 +207,7 @@ export default function TabLayout() {
         )}
         {stage === 'app' && <AppTabs />}
         <Animated.View pointerEvents="none" style={[styles.fadeOverlay, fadeStyle]} />
+        <GiftRevealOverlay />
       </ThemeProvider>
     </GestureHandlerRootView>
   );

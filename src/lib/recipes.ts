@@ -5,6 +5,7 @@ import { Course } from '@/constants/meal-flow';
 import { fetchWithTimeout, getApiUrl } from '@/lib/api';
 import { grantFirstCookingTrioGift } from '@/lib/first-cooking-gifts';
 import { ensureAnonSession, getCurrentUserId, supabase } from '@/lib/supabase';
+import { getUsername } from '@/lib/user-profile';
 
 /** A not-yet-saved recipe candidate — the shape decided-menus hands off to a meal record's
  * 「参考にしたレシピ」snapshot, and what a meal record later hands to saveAiRecipe(). Deliberately a
@@ -61,6 +62,8 @@ export type SavedRecipe = {
   published?: boolean;
   /** Only set for source: 'public' — the Supabase auth.uid() that posted it, used to gate the delete link to the owner. */
   ownerId?: string;
+  /** Only set for source: 'public' — the poster's display name (@/lib/user-profile), snapshotted at publish time. */
+  authorName?: string | null;
 };
 
 export type NewUserRecipeInput = {
@@ -243,11 +246,12 @@ type PublicRecipeRow = {
   taste_tag: string | null;
   temperature_tag: string | null;
   summary: string | null;
+  author_name: string | null;
   created_at: string;
 };
 
 const PUBLIC_RECIPE_COLUMNS =
-  'id, owner_id, title, book_content, photo_url, course, genre_tag, format_tag, taste_tag, temperature_tag, summary, created_at';
+  'id, owner_id, title, book_content, photo_url, course, genre_tag, format_tag, taste_tag, temperature_tag, summary, author_name, created_at';
 
 function fromPublicRow(row: PublicRecipeRow): SavedRecipe {
   return {
@@ -264,6 +268,7 @@ function fromPublicRow(row: PublicRecipeRow): SavedRecipe {
     tasteTag: row.taste_tag,
     temperatureTag: row.temperature_tag,
     summary: row.summary,
+    authorName: row.author_name,
   };
 }
 
@@ -284,6 +289,7 @@ async function uploadRecipePhoto(ownerId: string, recipeId: string, localPhotoUr
 export async function publishRecipe(recipe: SavedRecipe): Promise<void> {
   const ownerId = await ensureAnonSession();
   const photoUrl = recipe.photoUri ? await uploadRecipePhoto(ownerId, recipe.id, recipe.photoUri) : null;
+  const authorName = await getUsername();
 
   const { error } = await supabase.from(PUBLIC_TABLE).insert({
     owner_id: ownerId,
@@ -296,6 +302,7 @@ export async function publishRecipe(recipe: SavedRecipe): Promise<void> {
     taste_tag: recipe.tasteTag ?? null,
     temperature_tag: recipe.temperatureTag ?? null,
     summary: recipe.summary ?? null,
+    author_name: authorName,
   });
   if (error) throw error;
   grantFirstCookingTrioGift('recipe-post').catch((giftError) => console.error(giftError));

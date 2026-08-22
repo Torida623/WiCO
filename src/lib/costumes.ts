@@ -20,10 +20,13 @@ export type CostumeId = 'default' | (typeof COSTUMES)[number]['id'];
 
 export type CostumeTier = 'normal' | 'premium';
 
+export type CostumeSeries = 'cooking' | 'daily' | 'animal';
+
 export type CostumeDef = {
   id: string;
   label: string;
   tier: CostumeTier;
+  series: CostumeSeries;
   image: number;
   /**
    * True when the art bakes in its own scene (not just a transparent character cutout) — e.g.
@@ -47,6 +50,7 @@ export const COSTUMES = [
     id: 'first-cooking-apron',
     label: 'はじめての料理（エプロン）',
     tier: 'normal',
+    series: 'cooking',
     image: require('@/assets/images/mascot/costume-first-cooking-apron.png'),
     hasOwnBackground: false,
     ticketCost: null,
@@ -55,6 +59,7 @@ export const COSTUMES = [
     id: 'first-cooking-whisk',
     label: 'はじめての料理（あわ立て器）',
     tier: 'normal',
+    series: 'cooking',
     image: require('@/assets/images/mascot/costume-first-cooking-whisk.png'),
     hasOwnBackground: false,
     ticketCost: null,
@@ -63,6 +68,7 @@ export const COSTUMES = [
     id: 'first-cooking-chef-premium',
     label: 'はじめての料理（シェフコート）',
     tier: 'premium',
+    series: 'cooking',
     image: require('@/assets/images/mascot/costume-first-cooking-premium.png'),
     hasOwnBackground: true,
     ticketCost: null,
@@ -71,6 +77,7 @@ export const COSTUMES = [
     id: 'first-cooking-plate-premium',
     label: 'はじめての料理（お子様プレート）',
     tier: 'premium',
+    series: 'cooking',
     image: require('@/assets/images/mascot/costume-first-cooking-plate-premium.png'),
     hasOwnBackground: true,
     ticketCost: null,
@@ -79,6 +86,7 @@ export const COSTUMES = [
     id: 'sleepy-pajama-blue',
     label: 'おやすみ（パジャマ・ブルー）',
     tier: 'normal',
+    series: 'daily',
     image: require('@/assets/images/mascot/costume-sleepy-pajama-blue.png'),
     hasOwnBackground: false,
     ticketCost: 2,
@@ -87,6 +95,7 @@ export const COSTUMES = [
     id: 'sleepy-pajama-yellow',
     label: 'おやすみ（パジャマ・イエロー）',
     tier: 'normal',
+    series: 'daily',
     image: require('@/assets/images/mascot/costume-sleepy-pajama-yellow.png'),
     hasOwnBackground: false,
     ticketCost: 2,
@@ -95,9 +104,73 @@ export const COSTUMES = [
     id: 'sleepy-sheep-premium',
     label: 'おやすみ（ひつじさん）',
     tier: 'premium',
+    series: 'animal',
     image: require('@/assets/images/mascot/costume-sleepy-sheep-premium.png'),
     hasOwnBackground: true,
     ticketCost: 1,
+  },
+  {
+    id: 'dino-triceratops',
+    label: 'きょうりゅう（トリケラトプス）',
+    tier: 'normal',
+    series: 'animal',
+    image: require('@/assets/images/mascot/costume-animal-dino-green.png'),
+    hasOwnBackground: false,
+    ticketCost: 2,
+  },
+  {
+    id: 'dino-tyrannosaurus',
+    label: 'きょうりゅう（ティラノ）',
+    tier: 'normal',
+    series: 'animal',
+    image: require('@/assets/images/mascot/costume-animal-dino-orange.png'),
+    hasOwnBackground: false,
+    ticketCost: 2,
+  },
+  {
+    id: 'dino-friends-premium',
+    label: 'きょうりゅうのなかまたち',
+    tier: 'premium',
+    series: 'animal',
+    image: require('@/assets/images/mascot/costume-animal-dino-premium.png'),
+    hasOwnBackground: true,
+    ticketCost: 1,
+  },
+  {
+    id: 'outing-strawhat',
+    label: 'のんびり日和',
+    tier: 'normal',
+    series: 'daily',
+    image: require('@/assets/images/mascot/costume-outing-strawhat.png'),
+    hasOwnBackground: false,
+    ticketCost: 2,
+  },
+  {
+    id: 'outing-hoodie',
+    label: 'タウンカジュアル',
+    tier: 'normal',
+    series: 'daily',
+    image: require('@/assets/images/mascot/costume-outing-hoodie.png'),
+    hasOwnBackground: false,
+    ticketCost: 2,
+  },
+  {
+    id: 'outing-rainy-premium',
+    label: 'あめのひのさんぽ',
+    tier: 'premium',
+    series: 'daily',
+    image: require('@/assets/images/mascot/costume-outing-rainy-premium.png'),
+    hasOwnBackground: true,
+    ticketCost: 1,
+  },
+  {
+    id: 'birthday-cake-premium',
+    label: 'Happy!Happy!Birthday!!',
+    tier: 'premium',
+    series: 'cooking',
+    image: require('@/assets/images/mascot/costume-birthday-cake-premium.png'),
+    hasOwnBackground: true,
+    ticketCost: null,
   },
 ] as const satisfies readonly CostumeDef[];
 

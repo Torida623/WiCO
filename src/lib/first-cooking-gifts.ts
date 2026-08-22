@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
 
-import { CostumeId, findCostume, markCostumeOwned } from '@/lib/costumes';
+import { CostumeId, markCostumeOwned } from '@/lib/costumes';
+import { announceGift } from '@/lib/gift-reveal-store';
 
 const KEY_MENU_DECIDED = 'wico:gift-menu-decided';
 const KEY_TRIO_PROGRESS = 'wico:gift-trio-progress';
@@ -24,11 +24,7 @@ const TRIO_ORDER_REWARDS: readonly CostumeId[] = [
 
 async function grantCostumeGift(costumeId: CostumeId) {
   await markCostumeOwned(costumeId);
-  const costume = findCostume(costumeId);
-  Alert.alert(
-    'プレゼントが届いたよ！',
-    `「はじめての料理」シリーズの${costume?.label ?? 'とくべつな衣装'}をプレゼントするね。着替える画面で受け取れるよ。`,
-  );
+  announceGift(costumeId);
 }
 
 /** 献立を考えるを初めて完了したときに呼ぶ。2回目以降は呼んでも何も起きない。 */

@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { ThemedView } from '@/components/themed-view';
 import { NORMAL_TICKET_PACKS, PREMIUM_TICKET_PACKS, ShopPack, STAR_COOKIE_PACKS } from '@/constants/shop-items';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { addTickets, CostumeTier, getTicketBalance, TICKET_LABEL } from '@/lib/costumes';
+import { addStarCookies, getStarCookieBalance } from '@/lib/star-cookies';
 
 const TICKET_IMAGE: Record<string, number> = {
   'normal-ticket-1': require('@/assets/images/shop/ticket-normal.png'),
@@ -27,10 +28,6 @@ const STAR_COOKIE_IMAGE: Record<string, number> = {
 
 const BACKGROUND = require('@/assets/images/shop/shop-bg.jpg');
 
-function handleStarCookieBuy(pack: ShopPack) {
-  Alert.alert('準備中だよ', `${pack.label}の購入機能はもう少し待っててね。`);
-}
-
 function PackRow({ pack, icon, onBuy }: { pack: ShopPack; icon?: number; onBuy: (pack: ShopPack) => void }) {
   return (
     <ThemedView type="backgroundElement" style={styles.packRow}>
@@ -42,8 +39,8 @@ function PackRow({ pack, icon, onBuy }: { pack: ShopPack; icon?: number; onBuy: 
             {pack.note}
           </ThemedText>
         )}
+        <ThemedText type="smallBold">{pack.price}</ThemedText>
       </View>
-      <ThemedText type="smallBold">{pack.price}</ThemedText>
       <Pressable onPress={() => onBuy(pack)}>
         {({ pressed }) => (
           <ThemedView type="accent" style={[styles.buyButton, pressed && styles.pressed]}>
@@ -58,15 +55,29 @@ function PackRow({ pack, icon, onBuy }: { pack: ShopPack; icon?: number; onBuy: 
 }
 
 export default function ShopScreen() {
+  const [starCookieBalance, setStarCookieBalance] = useState(0);
   const [normalBalance, setNormalBalance] = useState(0);
   const [premiumBalance, setPremiumBalance] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
+      getStarCookieBalance().then(setStarCookieBalance);
       getTicketBalance('normal').then(setNormalBalance);
       getTicketBalance('premium').then(setPremiumBalance);
     }, []),
   );
+
+  async function handleStarCookieBuy(pack: ShopPack) {
+    if (!pack.amount) {
+      Alert.alert('準備中だよ', `${pack.label}の購入機能はもう少し待っててね。`);
+      return;
+    }
+    // TODO(運営者): 実際の課金(IAP)がまだ繋がっていないため、購入ボタンを押すとテスト用に
+    // その場で星クッキーを付与している。EAS dev clientでのIAP接続後に差し替える。
+    const next = await addStarCookies(pack.amount);
+    setStarCookieBalance(next);
+    Alert.alert('交換できるよ', `${pack.label}を追加したよ（テスト付与・現在${next}個）。`);
+  }
 
   async function handleTicketBuy(tier: CostumeTier, pack: ShopPack) {
     if (!pack.amount) {
@@ -86,15 +97,38 @@ export default function ShopScreen() {
       <Image source={BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="ショップ" onBack={() => router.back()} />
+        <ScreenHeader onBack={() => router.replace('/perokoko-room' as Href)} />
 
         <ScrollView style={styles.cardArea} contentContainerStyle={styles.content}>
           <View style={styles.section}>
-            <ThemedText type="smallBold" style={styles.sectionHeading}>
-              星クッキー
+            <ThemedText type="smallBold" style={[styles.sectionHeading, styles.firstHeadingSpacing]}>
+              会員プラン
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              ペロココとの音声会話で使えるチケットだよ。
+              ノーマル・プレミアムに登録すると、できることが増えるよ。
+            </ThemedText>
+            <Pressable onPress={() => router.push('/shop/subscription' as Href)}>
+              {({ pressed }) => (
+                <ThemedView type="accent" style={[styles.subscriptionButton, pressed && styles.pressed]}>
+                  <ThemedText type="smallBold" themeColor="background">
+                    プランを見る
+                  </ThemedText>
+                </ThemedView>
+              )}
+            </Pressable>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.headingRow}>
+              <ThemedText type="smallBold" style={styles.sectionHeading}>
+                星クッキー
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                （所持数{starCookieBalance}個）
+              </ThemedText>
+            </View>
+            <ThemedText type="small" themeColor="textSecondary">
+              {'ペロココの大好物。\n一緒にお料理したい時に必要になるよ！'}
             </ThemedText>
             {STAR_COOKIE_PACKS.map((pack) => (
               <PackRow key={pack.id} pack={pack} icon={STAR_COOKIE_IMAGE[pack.id]} onBuy={handleStarCookieBuy} />
@@ -102,11 +136,16 @@ export default function ShopScreen() {
           </View>
 
           <View style={styles.section}>
-            <ThemedText type="smallBold" style={styles.sectionHeading}>
-              {TICKET_LABEL.normal}
-            </ThemedText>
+            <View style={styles.headingRow}>
+              <ThemedText type="smallBold" style={styles.sectionHeading}>
+                {TICKET_LABEL.normal}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                （所持数{normalBalance}枚）
+              </ThemedText>
+            </View>
             <ThemedText type="small" themeColor="textSecondary">
-              ペロココのノーマル衣装と交換できるチケットだよ。今の所持数: {normalBalance}枚
+              {'ペロココのお着替えチケット。\n今日は何を着ようかな？'}
             </ThemedText>
             {NORMAL_TICKET_PACKS.map((pack) => (
               <PackRow
@@ -119,11 +158,16 @@ export default function ShopScreen() {
           </View>
 
           <View style={styles.section}>
-            <ThemedText type="smallBold" style={styles.sectionHeading}>
-              {TICKET_LABEL.premium}
-            </ThemedText>
+            <View style={styles.headingRow}>
+              <ThemedText type="smallBold" style={styles.sectionHeading}>
+                {TICKET_LABEL.premium}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                （所持数{premiumBalance}枚）
+              </ThemedText>
+            </View>
             <ThemedText type="small" themeColor="textSecondary">
-              ペロココのプレミアム衣装と交換できるチケットだよ。今の所持数: {premiumBalance}枚
+              {'ペロココの特別なおめかしチケット。\nとっておきの一着を選ぼう！'}
             </ThemedText>
             {PREMIUM_TICKET_PACKS.map((pack) => (
               <PackRow
@@ -166,12 +210,25 @@ const styles = StyleSheet.create({
     padding: Spacing.two,
     gap: Spacing.five,
   },
+  firstHeadingSpacing: {
+    marginTop: 20,
+  },
   section: {
     gap: Spacing.two,
   },
   sectionHeading: {
     fontSize: 20,
     lineHeight: 26,
+  },
+  headingRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.one,
+  },
+  subscriptionButton: {
+    alignItems: 'center',
+    paddingVertical: Spacing.three,
+    borderRadius: Spacing.three,
   },
   packRow: {
     flexDirection: 'row',
