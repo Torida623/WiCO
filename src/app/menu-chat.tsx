@@ -115,7 +115,9 @@ const BREAKFAST_INGREDIENTS_INPUT_TEXT_PATCH_FILL_COLOR = 'rgb(254, 252, 240)';
 const BREAKFAST_INGREDIENTS_INPUT_TEXT_BOX = { top: '9%', left: '3.4%', width: '72.9%', height: '81.4%' } as const;
 const PEOPLE_INPUT_TEXT_BOX = { top: '14%', left: '8%', width: '84%', height: '73%' } as const;
 
-const MENU_FETCH_TIMEOUT_MS = 30_000;
+// 'final' can retry the completion up to 3x internally (see createJapaneseChatCompletion) and
+// generates a larger structured response than 'proposal', so it needs more headroom.
+const MENU_FETCH_TIMEOUT_MS = { proposal: 30_000, final: 60_000 } as const;
 
 type MenuFetchResult = { message: string; dishes?: DecidedDish[] };
 
@@ -131,7 +133,7 @@ async function fetchMenuMessage(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode, answers, proposalText }),
     },
-    MENU_FETCH_TIMEOUT_MS,
+    MENU_FETCH_TIMEOUT_MS[mode],
   );
   const data = await res.json();
   if (!res.ok) {
@@ -444,6 +446,7 @@ export default function MealChatScreen() {
       setShowingRecipeDetail(true);
     } catch (error) {
       console.error(error);
+      showMessage('ai', 'あれ、うまく繋がらなかったみたい…！もう一度試してみてくれる？');
     } finally {
       setIsTyping(false);
     }

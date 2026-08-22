@@ -49,7 +49,7 @@ export default function DecidedMenuDetailScreen() {
         setMenu(loaded ?? null);
         setIsLoading(false);
         if (loaded) {
-          setCheckedIngredientNames(new Set(aggregateMenuIngredients(loaded).map((i) => i.name)));
+          setCheckedIngredientNames(new Set(aggregateMenuIngredients(loaded.dishes).map((i) => i.name)));
           // 実際に作った皿は決めた献立と食い違うこともある(汁物を変えた、副菜を省いた等)ので、
           // デフォルトは全部チェック済みにしつつ、記録前に外せるようにしておく。
           setCheckedMemoryDishIndices(new Set((loaded.dishes ?? []).map((_, index) => index)));
