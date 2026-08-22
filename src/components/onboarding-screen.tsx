@@ -52,7 +52,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={styles.subheading}>
               お名前と誕生日を教えてね。誕生日にはペロココからプレゼントがあるよ。
-              {'\n'}あとで設定から変更・登録できるから、今は空欄でも大丈夫だよ。
+              {'\n'}お名前はあとで設定から変更できるよ。誕生日は一度登録すると変更できないから、正しく入力してね（空欄のままでもOK）。
             </ThemedText>
 
             <View style={styles.field}>
