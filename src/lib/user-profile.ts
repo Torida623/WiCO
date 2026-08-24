@@ -5,7 +5,7 @@ const BIRTHDAY_KEY = 'wico:birthday'; // "MM-DD" — 年は聞かない（プラ
 const ONBOARDED_KEY = 'wico:onboarded';
 const BGM_VOLUME_KEY = 'wico:bgm-volume';
 
-const DEFAULT_BGM_VOLUME = 1;
+const DEFAULT_BGM_VOLUME = 0.3;
 
 export type Birthday = { month: number; day: number };
 

@@ -1,5 +1,5 @@
-import { RoomPlaceholderScreen } from '@/components/perokoko-room/room-placeholder-screen';
+import { TutorialScreen } from '@/components/perokoko-room/tutorial-screen';
 
-export default function TutorialScreen() {
-  return <RoomPlaceholderScreen title="ヘルプ" />;
+export default function TutorialRoute() {
+  return <TutorialScreen />;
 }

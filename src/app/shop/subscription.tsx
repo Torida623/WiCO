@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +9,15 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { SUBSCRIPTION_PLANS, SubscriptionPlan } from '@/constants/subscription-plans';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+
+const BACKGROUND = require('@/assets/images/shop/subscription-bg.jpg');
+
+const PLAN_ICON: Record<SubscriptionPlan['id'], { source: number; aspectRatio: number }> = {
+  free: { source: require('@/assets/images/shop/plan-icon-free.png'), aspectRatio: 717 / 724 },
+  normal: { source: require('@/assets/images/shop/plan-icon-normal.png'), aspectRatio: 592 / 724 },
+  premium: { source: require('@/assets/images/shop/plan-icon-premium.png'), aspectRatio: 863 / 724 },
+};
+const PLAN_ICON_HEIGHT = 32;
 
 // OSの購読管理画面を直接開くURL。iOS/Androidどちらも、解約処理自体はアプリ側では行えず
 // ストア側の画面で行う仕様のため、アプリは「そこへ誘導する」以上のことをしない。
@@ -36,17 +46,30 @@ function PlanCard({ plan }: { plan: SubscriptionPlan }) {
   return (
     <ThemedView type={isCurrent ? 'backgroundSelected' : 'backgroundElement'} style={styles.planCard}>
       <View style={styles.planHeader}>
-        <ThemedText type="smallBold" style={styles.planLabel}>
-          {plan.label}
-        </ThemedText>
+        <View style={styles.planTitleRow}>
+          <Image
+            source={PLAN_ICON[plan.id].source}
+            style={[styles.planIcon, { aspectRatio: PLAN_ICON[plan.id].aspectRatio }]}
+            contentFit="contain"
+          />
+          <ThemedText type="smallBold" style={styles.planLabel}>
+            {plan.label}
+          </ThemedText>
+        </View>
         {isCurrent && (
           <ThemedText type="small" themeColor="accent">
             現在のプラン
           </ThemedText>
         )}
       </View>
+      <ThemedText type="smallBold" style={styles.tagline}>
+        {plan.tagline}
+      </ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        {plan.description}
+      </ThemedText>
       <ThemedText type="smallBold">{plan.price}</ThemedText>
-      <View style={styles.featureList}>
+      <View style={[styles.featureList, styles.featureListSpacing]}>
         {plan.features.map((feature) => (
           <ThemedText key={feature} type="small" themeColor="textSecondary">
             ・{feature}
@@ -73,10 +96,10 @@ export default function SubscriptionShopScreen() {
 
   return (
     <View style={styles.container}>
-      <ThemedView type="background" style={styles.absoluteFill} />
+      <Image source={BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="会員プラン" onBack={() => router.back()} />
+        <ScreenHeader onBack={() => router.back()} />
 
         <ScrollView contentContainerStyle={styles.content}>
           {SUBSCRIPTION_PLANS.map((plan) => (
@@ -127,11 +150,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  planTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  planIcon: {
+    height: PLAN_ICON_HEIGHT,
+  },
+  tagline: {
+    marginTop: Spacing.one,
+  },
   planLabel: {
     fontSize: 18,
   },
   featureList: {
     gap: Spacing.half,
+  },
+  featureListSpacing: {
+    marginTop: Spacing.four,
   },
   selectButton: {
     alignItems: 'center',

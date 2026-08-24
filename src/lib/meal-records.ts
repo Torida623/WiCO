@@ -30,8 +30,9 @@ export type MealRecord = {
    * (if any), so it survives the menu's own 48h expiry. Empty when the meal wasn't recorded from a
    * decided menu (e.g. eating out, a quick photo with no dish plan behind it). */
   linkedRecipes?: LinkedRecipeSnapshot[];
-  /** Titles from linkedRecipes that have already been sent to レシピ研究所 — lets the save checklist
-   * on the memory's detail page remember its state across visits instead of resetting every time. */
+  /** Titles from linkedRecipes that have already been posted to レシピ研究所 (via recipe-lab/new.tsx,
+   * which writes back here after a successful post) — lets the memory's detail page mark them as
+   * already-posted instead of offering the 投稿する link again. */
   savedRecipeTitles?: string[];
 };
 

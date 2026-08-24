@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Href, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,9 +10,8 @@ import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
-import { getMealRecord, MealRecord, updateMealRecord } from '@/lib/meal-records';
-import { fetchRecipeTags, saveAiRecipe } from '@/lib/recipes';
+import { getMealRecord, MealRecord } from '@/lib/meal-records';
+import { LinkedRecipeSnapshot, splitBookContent } from '@/lib/recipes';
 
 const KITCHEN_BACKGROUND = require('@/assets/images/meal-log/kitchen-bg.jpg');
 
@@ -23,54 +22,41 @@ const FOOD_GROUP_COLORS = {
 } as const;
 
 export default function MealRecordDetailScreen() {
-  const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [record, setRecord] = useState<MealRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [checkedTitles, setCheckedTitles] = useState<Set<string>>(new Set());
-  const [isSavingRecipes, setIsSavingRecipes] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    getMealRecord(id).then((loaded) => {
-      if (!cancelled) {
-        setRecord(loaded ?? null);
-        setIsLoading(false);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      getMealRecord(id).then((loaded) => {
+        if (!cancelled) {
+          setRecord(loaded ?? null);
+          setIsLoading(false);
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [id]),
+  );
 
   const savedTitles = new Set(record?.savedRecipeTitles ?? []);
 
-  function toggleRecipeChecked(title: string) {
-    if (savedTitles.has(title)) return;
-    setCheckedTitles((current) => {
-      const next = new Set(current);
-      if (next.has(title)) next.delete(title);
-      else next.add(title);
-      return next;
-    });
-  }
-
-  async function handleSaveCheckedRecipes() {
-    if (!record || !record.linkedRecipes || checkedTitles.size === 0) return;
-    setIsSavingRecipes(true);
-    try {
-      for (const recipe of record.linkedRecipes) {
-        if (!checkedTitles.has(recipe.title)) continue;
-        const tags = await fetchRecipeTags(recipe.title, recipe.bookContent);
-        await saveAiRecipe({ title: recipe.title, bookContent: recipe.bookContent, course: recipe.course, ...tags });
-      }
-      const updatedTitles = [...savedTitles, ...checkedTitles];
-      const updated = await updateMealRecord(record.id, { savedRecipeTitles: updatedTitles });
-      setRecord(updated);
-      setCheckedTitles(new Set());
-    } finally {
-      setIsSavingRecipes(false);
-    }
+  function handlePostRecipe(recipe: LinkedRecipeSnapshot) {
+    if (!record) return;
+    const { ingredientsText, stepsText } = splitBookContent(recipe.bookContent);
+    router.push({
+      pathname: '/recipe-lab/new',
+      params: {
+        title: recipe.title,
+        ingredientsText,
+        stepsText,
+        course: recipe.course ?? '',
+        photoUri: record.photoUri ?? '',
+        mealRecordId: record.id,
+      },
+    } as Href);
   }
 
   return (
@@ -140,59 +126,35 @@ export default function MealRecordDetailScreen() {
             {record.linkedRecipes && record.linkedRecipes.length > 0 && (
               <ThemedView type="background" style={styles.formCard}>
                 <ThemedText type="smallBold" themeColor="accent" style={styles.heading}>
-                  研究所にレシピを保存する
+                  レシピ研究所に投稿する
                 </ThemedText>
                 <View style={styles.checklist}>
                   {record.linkedRecipes.map((recipe, index) => {
                     const saved = savedTitles.has(recipe.title);
-                    const checked = saved || checkedTitles.has(recipe.title);
                     return (
                       <Pressable
                         key={`${recipe.title}-${index}`}
-                        onPress={() => toggleRecipeChecked(recipe.title)}
+                        onPress={() => handlePostRecipe(recipe)}
                         disabled={saved}
                       >
                         {({ pressed }) => (
-                          <View style={[styles.checklistRow, pressed && styles.pressed]}>
-                            <View
-                              style={[
-                                styles.checkbox,
-                                { borderColor: checked ? theme.accent : theme.textSecondary },
-                                checked && { backgroundColor: theme.accent },
-                              ]}
-                            >
-                              {checked && (
-                                <ThemedText type="smallBold" themeColor="background" style={styles.checkboxMark}>
-                                  ✓
-                                </ThemedText>
-                              )}
-                            </View>
-                            <ThemedText type="small">
+                          <View style={[styles.recipeRow, pressed && !saved && styles.pressed]}>
+                            <ThemedText type="small" style={styles.recipeRowText}>
                               {recipe.course ? `${recipe.course}：` : ''}
                               {recipe.title}
-                              {saved ? '（保存済み）' : ''}
+                              {saved ? '（投稿済み）' : ''}
                             </ThemedText>
+                            {!saved && (
+                              <ThemedText type="small" themeColor="accent">
+                                投稿する ›
+                              </ThemedText>
+                            )}
                           </View>
                         )}
                       </Pressable>
                     );
                   })}
                 </View>
-                <Pressable onPress={handleSaveCheckedRecipes} disabled={isSavingRecipes || checkedTitles.size === 0}>
-                  {({ pressed }) => (
-                    <ThemedView
-                      type="accent"
-                      style={[
-                        styles.saveButton,
-                        (pressed || isSavingRecipes || checkedTitles.size === 0) && styles.pressed,
-                      ]}
-                    >
-                      <ThemedText type="smallBold" themeColor="background">
-                        {isSavingRecipes ? '保存中…' : '保存する'}
-                      </ThemedText>
-                    </ThemedView>
-                  )}
-                </Pressable>
               </ThemedView>
             )}
           </ScrollView>
@@ -258,27 +220,15 @@ const styles = StyleSheet.create({
   checklist: {
     gap: Spacing.two,
   },
-  checklistRow: {
+  recipeRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: Spacing.two,
+    paddingVertical: Spacing.one,
   },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: Spacing.half,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxMark: {
-    fontSize: 13,
-    lineHeight: 15,
-  },
-  saveButton: {
-    paddingVertical: Spacing.three,
-    borderRadius: Spacing.three,
-    alignItems: 'center',
+  recipeRowText: {
+    flex: 1,
   },
   pressed: {
     opacity: 0.7,

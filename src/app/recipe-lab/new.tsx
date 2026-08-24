@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
@@ -37,6 +37,7 @@ import {
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { fetchWithTimeout, getApiUrl } from '@/lib/api';
+import { getMealRecord, updateMealRecord } from '@/lib/meal-records';
 import { saveUserRecipe } from '@/lib/recipes';
 
 const FORMAT_FETCH_TIMEOUT_MS = 30_000;
@@ -85,6 +86,17 @@ function buildStepsText(steps: string[]): string {
   return formatStepsText(steps.map((s) => s.trim()).filter(Boolean));
 }
 
+/** Undoes formatStepsText's "N. " numbering for a numbered-steps string handed in via route params
+ * (from 料理の思い出's 投稿する handoff), back into the plain per-step array this form edits. */
+function parseStepsParam(stepsText?: string): string[] {
+  if (!stepsText) return [''];
+  const lines = stepsText
+    .split('\n')
+    .map((line) => line.replace(/^\d+\.\s*/, '').trim())
+    .filter(Boolean);
+  return lines.length > 0 ? lines : [''];
+}
+
 function seasoningGroupText(group: SeasoningGroup): string {
   return group.mode === 'sequential' ? formatSequentialItemsText(group.items) : group.text.trim();
 }
@@ -109,26 +121,34 @@ function buildIngredientsText(
 
 export default function NewRecipeScreen() {
   const theme = useTheme();
+  const params = useLocalSearchParams<{
+    title?: string;
+    ingredientsText?: string;
+    stepsText?: string;
+    course?: string;
+    photoUri?: string;
+    mealRecordId?: string;
+  }>();
   const [cameraPermission, requestCameraPermission] = ImagePicker.useCameraPermissions();
   const [libraryPermission, requestLibraryPermission] = ImagePicker.useMediaLibraryPermissions();
 
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoUri, setPhotoUri] = useState<string | null>(params.photoUri ?? null);
   const [boxWidth, setBoxWidth] = useState(0);
   const boxHeight = boxWidth / PHOTO_FRAME_ASPECT_RATIO;
   const windowTop = boxHeight * WINDOW_INSET_TOP;
   const windowLeft = boxWidth * WINDOW_INSET_LEFT;
   const windowWidth = boxWidth * (1 - WINDOW_INSET_LEFT - WINDOW_INSET_RIGHT);
   const windowHeight = boxHeight * (1 - WINDOW_INSET_TOP - WINDOW_INSET_BOTTOM);
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(params.title ?? '');
   const [summary, setSummary] = useState('');
   const [servings, setServings] = useState<ServingsValue>('2');
-  const [basicText, setBasicText] = useState('');
+  const [basicText, setBasicText] = useState(params.ingredientsText ?? '');
   const [garnishText, setGarnishText] = useState('');
   const [seasoningGroups, setSeasoningGroups] = useState<SeasoningGroup[]>([
     { mode: 'combined', text: '', items: [{ name: '', amount: '' }] },
   ]);
-  const [steps, setSteps] = useState<string[]>(['']);
-  const [course, setCourse] = useState<Course | undefined>(undefined);
+  const [steps, setSteps] = useState<string[]>(() => parseStepsParam(params.stepsText));
+  const [course, setCourse] = useState<Course | undefined>((params.course as Course) || undefined);
   const [genreTag, setGenreTag] = useState<string | null>(null);
   const [formatTag, setFormatTag] = useState<string | null>(null);
   const [tasteTag, setTasteTag] = useState<string | null>(null);
@@ -319,6 +339,18 @@ export default function NewRecipeScreen() {
         temperatureTag,
         summary,
       });
+
+      // 料理の思い出から投稿しに来た場合、そのレシピをもう一度投稿導線に出さないよう
+      // 呼び出し元のmeal recordに「投稿済み」を書き戻す。
+      if (params.mealRecordId) {
+        const record = await getMealRecord(params.mealRecordId);
+        if (record) {
+          const savedTitles = new Set(record.savedRecipeTitles ?? []);
+          savedTitles.add(title);
+          await updateMealRecord(params.mealRecordId, { savedRecipeTitles: [...savedTitles] });
+        }
+      }
+
       router.back();
     } catch (error) {
       console.error(error);

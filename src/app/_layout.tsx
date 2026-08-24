@@ -21,6 +21,9 @@ import { hasOnboarded } from '@/lib/user-profile';
 
 SplashScreen.preventAutoHideAsync();
 
+// TODO(テスト用): trueの間はオンボーディング済みでも毎回「はじめまして」演出に入る。確認が終わったらfalseに戻す。
+const FORCE_ONBOARDING_FOR_TESTING = false;
+
 const TITLE_BGM_VOLUME = 0.4;
 
 // fadeStartMs is tuned per track: just before that track's actual runtime,
@@ -28,7 +31,7 @@ const TITLE_BGM_VOLUME = 0.4;
 const DAY_BGM = { source: require('@/assets/audio/title-bgm.mp3'), fadeStartMs: 75_000, fadeInMs: 600 }; // 1:17 track
 const NIGHT_BGM = { source: require('@/assets/audio/night-bgm.mp3'), fadeStartMs: 115_000, fadeInMs: 0 }; // 1:57 track
 
-// Shared by 献立ノート(decided-menus) and お買い物メモ(shopping-memo). The mp3-header script used to
+// Shared by 献立ノート(decided-menus) and 買うものリスト(shopping-memo). The mp3-header script used to
 // measure these initially had an offset bug that missed each track's VBR (Xing) header and fell
 // back to a much-too-long CBR estimate (reported ~6:06 for both) — actual runtime is ~2:02/~2:08.
 const NOTEBOOK_BGM_VOLUME = 0.4;
@@ -152,7 +155,7 @@ export default function TabLayout() {
   useLoopingBgm(
     roomBgm.source,
     ROOM_BGM_VOLUME * bgmVolumeMultiplier,
-    stage === 'app' && pathname.startsWith('/perokoko-room'),
+    stage === 'app' && (pathname.startsWith('/perokoko-room') || pathname.startsWith('/shop')),
     roomBgm.fadeStartMs,
     roomBgm.fadeInMs,
     roomBgm.startDelayMs,
@@ -172,7 +175,7 @@ export default function TabLayout() {
   }, [stage]);
 
   async function handleEnterFromDoor() {
-    const onboarded = await hasOnboarded();
+    const onboarded = !FORCE_ONBOARDING_FOR_TESTING && (await hasOnboarded());
     transitionTo(onboarded ? 'menu' : 'onboarding');
   }
 

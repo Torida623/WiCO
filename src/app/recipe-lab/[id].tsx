@@ -11,23 +11,20 @@ import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { buildRecipeTagChips } from '@/lib/recipe-tags';
-import { deletePublicRecipe, deleteRecipe, getPublicRecipe, getRecipe, SavedRecipe } from '@/lib/recipes';
+import {
+  deletePublicRecipe,
+  deleteRecipe,
+  getPublicRecipe,
+  getRecipe,
+  isPublicRecipeSaved,
+  removeSavedPublicRecipe,
+  SavedRecipe,
+  savePublicRecipeToLibrary,
+  splitBookContent,
+} from '@/lib/recipes';
 import { getCurrentUserId } from '@/lib/supabase';
 
 const LAB_BACKGROUND = require('@/assets/images/recipe-lab/lab-bg.jpg');
-
-const STEPS_MARKER = '【作り方】';
-
-/** bookContent is always `【材料】\n...\n\n【作り方】\n...` (see saveUserRecipe in lib/recipes.ts). Strips
- * the bracketed markers since the form cards below supply their own headings. */
-function splitBookContent(content: string): { ingredientsText: string; stepsText: string } {
-  const stepsIndex = content.indexOf(STEPS_MARKER);
-  if (stepsIndex < 0) return { ingredientsText: content.replace('【材料】', '').trim(), stepsText: '' };
-  return {
-    ingredientsText: content.slice(0, stepsIndex).replace('【材料】', '').trim(),
-    stepsText: content.slice(stepsIndex + STEPS_MARKER.length).trim(),
-  };
-}
 
 export default function RecipeDetailScreen() {
   const theme = useTheme();
@@ -35,6 +32,8 @@ export default function RecipeDetailScreen() {
   const [recipe, setRecipe] = useState<SavedRecipe | null>(null);
   const [canDelete, setCanDelete] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaved, setIsSaved] = useState(false);
+  const [isTogglingSave, setIsTogglingSave] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +54,8 @@ export default function RecipeDetailScreen() {
       if (publicRecipe) {
         const currentUserId = await getCurrentUserId();
         if (!cancelled) setCanDelete(currentUserId !== null && currentUserId === publicRecipe.ownerId);
+        const saved = await isPublicRecipeSaved(publicRecipe.id);
+        if (!cancelled) setIsSaved(saved);
       }
       setIsLoading(false);
     }
@@ -64,6 +65,24 @@ export default function RecipeDetailScreen() {
       cancelled = true;
     };
   }, [id]);
+
+  const canSave = recipe?.source === 'public' && !canDelete;
+
+  async function handleToggleSave() {
+    if (!recipe || isTogglingSave) return;
+    setIsTogglingSave(true);
+    try {
+      if (isSaved) {
+        await removeSavedPublicRecipe(recipe.id);
+        setIsSaved(false);
+      } else {
+        await savePublicRecipeToLibrary(recipe.id);
+        setIsSaved(true);
+      }
+    } finally {
+      setIsTogglingSave(false);
+    }
+  }
 
   const { ingredientsText, stepsText } = recipe
     ? splitBookContent(recipe.bookContent)
@@ -168,6 +187,20 @@ export default function RecipeDetailScreen() {
                 )}
               </Pressable>
             )}
+
+            {canSave && (
+              <Pressable onPress={handleToggleSave} disabled={isTogglingSave}>
+                {({ pressed }) => (
+                  <ThemedView
+                    type={isSaved ? 'backgroundElement' : 'accent'}
+                    style={[styles.saveButton, (pressed || isTogglingSave) && styles.pressed]}>
+                    <ThemedText type="smallBold" themeColor={isSaved ? 'text' : 'background'}>
+                      {isSaved ? '保存済み（タップで解除）' : '保存する'}
+                    </ThemedText>
+                  </ThemedView>
+                )}
+              </Pressable>
+            )}
           </ScrollView>
         )}
       </SafeAreaView>
@@ -237,6 +270,11 @@ const styles = StyleSheet.create({
   deleteRow: {
     alignItems: 'center',
     paddingVertical: Spacing.two,
+  },
+  saveButton: {
+    alignItems: 'center',
+    paddingVertical: Spacing.three,
+    borderRadius: Spacing.three,
   },
   pressed: {
     opacity: 0.7,

@@ -137,6 +137,7 @@ export default function SettingsScreen() {
               </ThemedText>
             )}
           </Pressable>
+
         </View>
       </SafeAreaView>
     </View>

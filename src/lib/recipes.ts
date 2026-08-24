@@ -2,42 +2,28 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import { Course } from '@/constants/meal-flow';
-import { fetchWithTimeout, getApiUrl } from '@/lib/api';
 import { grantFirstCookingTrioGift } from '@/lib/first-cooking-gifts';
 import { ensureAnonSession, getCurrentUserId, supabase } from '@/lib/supabase';
 import { getUsername } from '@/lib/user-profile';
 
 /** A not-yet-saved recipe candidate — the shape decided-menus hands off to a meal record's
- * 「参考にしたレシピ」snapshot, and what a meal record later hands to saveAiRecipe(). Deliberately a
- * plain content snapshot (not a reference by id) since the menu it came from expires in 48h. */
+ * 「参考にしたレシピ」snapshot, which 料理の思い出 later hands to recipe-lab/new.tsx (as route params)
+ * so the user posts it themselves with a photo, instead of it being auto-saved. Deliberately a plain
+ * content snapshot (not a reference by id) since the menu it came from expires in 48h. */
 export type LinkedRecipeSnapshot = { title: string; bookContent: string; course?: Course };
 
-export type RecipeTags = { genreTag: string | null; formatTag: string | null; tasteTag: string | null; temperatureTag: string | null };
+const STEPS_MARKER = '【作り方】';
 
-const EMPTY_RECIPE_TAGS: RecipeTags = { genreTag: null, formatTag: null, tasteTag: null, temperatureTag: null };
-const RECIPE_TAGS_FETCH_TIMEOUT_MS = 30_000;
-
-/** Runs at save-to-lab time (not at menu-generation or meal-record time) since these tags are only
- * ever needed if the dish actually gets saved. Best-effort: a failure here shouldn't block the save. */
-export async function fetchRecipeTags(title: string, bookContent: string): Promise<RecipeTags> {
-  try {
-    const res = await fetchWithTimeout(
-      getApiUrl('/api/recipe-tags'),
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, bookContent }) },
-      RECIPE_TAGS_FETCH_TIMEOUT_MS,
-    );
-    if (!res.ok) throw new Error('recipe-tags request failed');
-    const data = await res.json();
-    return {
-      genreTag: data.genreTag ?? null,
-      formatTag: data.formatTag ?? null,
-      tasteTag: data.tasteTag ?? null,
-      temperatureTag: data.temperatureTag ?? null,
-    };
-  } catch (error) {
-    console.error('タグの生成に失敗:', error);
-    return EMPTY_RECIPE_TAGS;
-  }
+/** bookContent is always `【材料】\n...\n\n【作り方】\n...` (see saveUserRecipe below). Strips the
+ * bracketed markers since callers supply their own headings. Shared by the recipe detail screen and
+ * the meal-log→post-to-lab handoff (both need to split a saved bookContent back into its two halves). */
+export function splitBookContent(content: string): { ingredientsText: string; stepsText: string } {
+  const stepsIndex = content.indexOf(STEPS_MARKER);
+  if (stepsIndex < 0) return { ingredientsText: content.replace('【材料】', '').trim(), stepsText: '' };
+  return {
+    ingredientsText: content.slice(0, stepsIndex).replace('【材料】', '').trim(),
+    stepsText: content.slice(stepsIndex + STEPS_MARKER.length).trim(),
+  };
 }
 
 export type RecipeSource = 'ai' | 'user' | 'public';
@@ -80,17 +66,12 @@ export type NewUserRecipeInput = {
   summary?: string;
 };
 
-export type NewAiRecipeInput = {
-  title: string;
-  bookContent: string;
-  course?: Course;
-  genreTag?: string | null;
-  formatTag?: string | null;
-  tasteTag?: string | null;
-  temperatureTag?: string | null;
-};
-
 const STORAGE_KEY = 'wico:recipes';
+const SAVED_PUBLIC_RECIPES_KEY = 'wico:saved-public-recipe-ids';
+
+/** id + いつ保存したか。savedAt はソート用 — 元のレシピの投稿日時ではなく「自分が保存した日時」で
+ * 保存したレシピタブが並ぶようにするため、ブックマーク自体のタイムスタンプを別で持つ。 */
+type SavedPublicRecipeRecord = { id: string; savedAt: string };
 
 function generateId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -122,12 +103,48 @@ export async function listRecipes(): Promise<SavedRecipe[]> {
   return sortBySavedAtDesc(await readAll());
 }
 
+async function readSavedPublicRecipeRecords(): Promise<SavedPublicRecipeRecord[]> {
+  const raw = await AsyncStorage.getItem(SAVED_PUBLIC_RECIPES_KEY);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as SavedPublicRecipeRecord[];
+  } catch {
+    return [];
+  }
+}
+
+async function writeSavedPublicRecipeRecords(records: SavedPublicRecipeRecord[]): Promise<void> {
+  await AsyncStorage.setItem(SAVED_PUBLIC_RECIPES_KEY, JSON.stringify(records));
+}
+
+export async function isPublicRecipeSaved(id: string): Promise<boolean> {
+  const records = await readSavedPublicRecipeRecords();
+  return records.some((record) => record.id === id);
+}
+
+/** 他ユーザーの公開レシピ(source: 'public')を自分の「保存したレシピ」タブに加える。レシピ本体は
+ * Supabase側にあるので、こちらはidと保存日時だけをこの端末にローカル保存する軽量なブックマーク。 */
+export async function savePublicRecipeToLibrary(id: string): Promise<void> {
+  const records = await readSavedPublicRecipeRecords();
+  if (records.some((record) => record.id === id)) return;
+  records.push({ id, savedAt: new Date().toISOString() });
+  await writeSavedPublicRecipeRecords(records);
+}
+
+export async function removeSavedPublicRecipe(id: string): Promise<void> {
+  const records = await readSavedPublicRecipeRecords();
+  await writeSavedPublicRecipeRecords(records.filter((record) => record.id !== id));
+}
+
 /** 保存したレシピ tab: local recipes minus the ones already published, so a recipe only ever shows in
  * one of 保存したレシピ / 投稿したレシピ, never both. Cross-checks unflagged recipes against this
  * device's public posts (not just the local `published` flag) and backfills the flag when it finds a
  * match — needed because `published` didn't exist yet when older recipes were posted, so those would
  * otherwise show in both tabs forever. Other callers (e.g. the menu-chat recipe picker) should keep
- * using listRecipes() — this filter is specific to that tab's mutual-exclusivity rule. */
+ * using listRecipes() — this filter is specific to that tab's mutual-exclusivity rule.
+ *
+ * Also merges in other users' public recipes this device has bookmarked via savePublicRecipeToLibrary()
+ * — sorted alongside the local recipes by when they were actually saved, not when they were posted. */
 export async function listSavedRecipes(): Promise<SavedRecipe[]> {
   let recipes = await listRecipes();
   const unflagged = recipes.filter((recipe) => recipe.source === 'user' && !recipe.published);
@@ -144,7 +161,9 @@ export async function listSavedRecipes(): Promise<SavedRecipe[]> {
     }
   }
 
-  return recipes.filter((recipe) => !recipe.published);
+  const localSaved = recipes.filter((recipe) => !recipe.published);
+  const bookmarkedPublic = await listSavedPublicRecipes();
+  return sortBySavedAtDesc([...localSaved, ...bookmarkedPublic]);
 }
 
 export async function getRecipe(id: string): Promise<SavedRecipe | undefined> {
@@ -200,26 +219,6 @@ export async function saveUserRecipe(input: NewUserRecipeInput): Promise<SavedRe
     publishRecipe(recipe).catch((error) => console.error('レシピの公開に失敗:', error));
   }
 
-  return recipe;
-}
-
-export async function saveAiRecipe(input: NewAiRecipeInput): Promise<SavedRecipe> {
-  const recipe: SavedRecipe = {
-    id: generateId(),
-    source: 'ai',
-    title: input.title,
-    bookContent: input.bookContent,
-    savedAt: new Date().toISOString(),
-    course: input.course,
-    genreTag: input.genreTag,
-    formatTag: input.formatTag,
-    tasteTag: input.tasteTag,
-    temperatureTag: input.temperatureTag,
-  };
-
-  const recipes = await readAll();
-  recipes.push(recipe);
-  await writeAll(recipes);
   return recipe;
 }
 
@@ -373,6 +372,28 @@ export async function getPublicRecipe(id: string): Promise<SavedRecipe | undefin
     .maybeSingle();
   if (error || !data) return undefined;
   return fromPublicRow(data);
+}
+
+/** This device's bookmarked public recipes, fetched by id and stamped with the local `savedAt` (when
+ * bookmarked, not when originally posted) so listSavedRecipes() can sort them alongside local saves. */
+async function listSavedPublicRecipes(): Promise<SavedRecipe[]> {
+  const records = await readSavedPublicRecipeRecords();
+  if (records.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from(PUBLIC_TABLE)
+    .select(PUBLIC_RECIPE_COLUMNS)
+    .in(
+      'id',
+      records.map((record) => record.id),
+    );
+  if (error) {
+    console.error('保存した公開レシピの取得に失敗:', error);
+    return [];
+  }
+
+  const savedAtById = new Map(records.map((record) => [record.id, record.savedAt]));
+  return (data ?? []).map((row) => ({ ...fromPublicRow(row), savedAt: savedAtById.get(row.id) ?? row.created_at }));
 }
 
 function photoPathFromPublicUrl(photoUrl: string): string | null {
