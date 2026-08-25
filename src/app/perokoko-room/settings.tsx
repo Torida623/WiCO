@@ -12,7 +12,6 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { isDaytime } from '@/constants/time-of-day';
 import { useTheme } from '@/hooks/use-theme';
 import { setBgmVolume, useBgmVolume } from '@/lib/bgm-volume-store';
-import { announceGift } from '@/lib/gift-reveal-store';
 import { getUsername, resetOnboarding, setUsername } from '@/lib/user-profile';
 
 const BACKGROUND_DAY = require('@/assets/images/perokoko-room/room-bg-day.jpg');
@@ -125,19 +124,6 @@ export default function SettingsScreen() {
               </ThemedText>
             )}
           </Pressable>
-
-          {/* TODO(運営者): プレゼント演出の見た目を詰めるための一時的な確認ボタン。演出が固まったら削除する。 */}
-          <Pressable
-            onPress={() => announceGift('birthday-cake-premium')}
-            hitSlop={8}
-            style={styles.resetRow}>
-            {({ pressed }) => (
-              <ThemedText type="small" themeColor="textSecondary" style={pressed && styles.pressed}>
-                （開発用）プレゼント演出をテストする
-              </ThemedText>
-            )}
-          </Pressable>
-
         </View>
       </SafeAreaView>
     </View>

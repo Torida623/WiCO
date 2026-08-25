@@ -380,7 +380,13 @@ export default function NewMealRecordScreen() {
       // The memory's own detail page shows the same nutrition summary and (when this record came
       // from a decided menu) the 研究所にレシピを保存する checklist, so there's no separate "saved"
       // screen to duplicate that here — just hand off to the page that persists.
-      router.replace(`/meal-log/${record.id}`);
+      // menuId経由(献立ノートの「料理の思い出として記録する」)で来た場合、meal-logタブのスタックには
+      // このrecord詳細画面しか積まれていない(index/historyを経由していない)ので、戻るボタンが
+      // 料理の思い出のトップへ向かうよう[id].tsx側に伝える。
+      router.replace({
+        pathname: '/meal-log/[id]',
+        params: menuId ? { id: record.id, fromCrossTab: '1' } : { id: record.id },
+      });
     } catch (error) {
       console.error(error);
       Alert.alert('記録に失敗したよ', 'もう一度試してみてね。');
@@ -409,7 +415,7 @@ export default function NewMealRecordScreen() {
       <Image source={KITCHEN_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.back()} />
+        <ScreenHeader onBack={() => router.replace('/meal-log')} />
 
         {phase === 'capture' && (
           <ScrollView style={styles.flex} contentContainerStyle={styles.captureScrollContent} pointerEvents="box-none">

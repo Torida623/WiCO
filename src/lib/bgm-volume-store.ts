@@ -10,18 +10,27 @@ import { getBgmVolume as readStoredBgmVolume, setBgmVolume as persistBgmVolume }
 type Listener = () => void;
 
 let currentVolume = 1;
+let hasStartedLoading = false;
 const listeners = new Set<Listener>();
 
-readStoredBgmVolume().then((volume) => {
-  currentVolume = volume;
-  listeners.forEach((listener) => listener());
-});
+/** モジュール読み込み時点(Web版のSSRだと`window`が無いタイミング)ではなく、実際に画面が
+ * useBgmVolume()を使い始めて購読された後まで読み込みを遅らせる。useSyncExternalStoreはsubscribe()を
+ * マウント後のeffectから呼ぶので、これだけでSSR中の実行を避けられる。 */
+function ensureLoaded(): void {
+  if (hasStartedLoading) return;
+  hasStartedLoading = true;
+  readStoredBgmVolume().then((volume) => {
+    currentVolume = volume;
+    listeners.forEach((listener) => listener());
+  });
+}
 
 function getSnapshot(): number {
   return currentVolume;
 }
 
 function subscribe(listener: Listener): () => void {
+  ensureLoaded();
   listeners.add(listener);
   return () => listeners.delete(listener);
 }

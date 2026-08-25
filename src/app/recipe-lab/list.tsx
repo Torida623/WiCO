@@ -61,7 +61,7 @@ export default function RecipeLabListScreen() {
 
   function handlePressSearch() {
     if (!hasRecipeSearchAccess()) {
-      Alert.alert('検索は有料会員限定の機能だよ', '有料プランに登録すると使えるようになるよ。');
+      Alert.alert('検索はごはん・ごちそうプラン限定の機能だよ', 'ごはんプラン以上に登録すると使えるようになるよ。');
       return;
     }
     setIsSearchOpen(true);

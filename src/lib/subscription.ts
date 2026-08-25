@@ -5,6 +5,5 @@
  * screen that currently just renders a static lock icon.
  */
 export function hasRecipeSearchAccess(): boolean {
-  // TODO: 動作確認のため一時的にtrue固定にしてる。確認が終わったらfalseに戻すこと。
-  return true;
+  return false;
 }

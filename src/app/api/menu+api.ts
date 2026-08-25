@@ -380,6 +380,24 @@ export async function POST(request: Request) {
       };
       dishes = [...dishes.filter((dish) => dish.course !== pinned.course), pinnedAsFinalDish];
     }
+    // dishesが空(例: 献立が丸ごと除外対象の主食だけだった場合や、AI応答の異常)になると、呼び出し側は
+    // 材料・作り方を欠いたまま主菜名だけをproposalTextから正規表現で拾う脆いフォールバックに頼ることに
+    // なる。ここで既にproposalTextの構造化パース(parseMenuFields)が使えるので、それで代表の1品を
+    // 補っておき、クライアント側には常に構造化データを渡すようにする。
+    if (dishes.length === 0) {
+      const fields = parseMenuFields(proposalText);
+      if (fields.main) {
+        dishes = [
+          {
+            course: '主菜',
+            title: fields.main,
+            basicIngredients: [],
+            seasoningGroups: [],
+            steps: [],
+          },
+        ];
+      }
+    }
     const orderedDishes = sortByCourseOrder(dishes);
     const plainStaple = orderedDishes.some((dish) => dish.course === '主食')
       ? undefined

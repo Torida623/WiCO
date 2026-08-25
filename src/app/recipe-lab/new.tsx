@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Href, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
@@ -351,7 +351,7 @@ export default function NewRecipeScreen() {
         }
       }
 
-      router.back();
+      router.replace('/recipe-lab' as Href);
     } catch (error) {
       console.error(error);
       Alert.alert('保存に失敗したよ', 'もう一度試してみてね。');
@@ -365,7 +365,7 @@ export default function NewRecipeScreen() {
       <View style={[styles.absoluteFill, { backgroundColor: theme.background, opacity: 0.3 }]} />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.back()} />
+        <ScreenHeader onBack={() => router.replace('/recipe-lab' as Href)} />
 
         <KeyboardAvoidingView style={styles.flex} keyboardVerticalOffset={Spacing.six}>
           <ScrollView

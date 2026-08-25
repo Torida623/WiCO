@@ -105,7 +105,7 @@ export default function ShopScreen() {
               会員プラン
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              ノーマル・プレミアムに登録すると、できることが増えるよ。
+              ごはん・ごちそうプランなら、WiCOでできることがもっと広がる！
             </ThemedText>
             <Pressable onPress={() => router.push('/shop/subscription' as Href)}>
               {({ pressed }) => (

@@ -22,7 +22,7 @@ const FOOD_GROUP_COLORS = {
 } as const;
 
 export default function MealRecordDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, fromCrossTab } = useLocalSearchParams<{ id: string; fromCrossTab?: string }>();
   const [record, setRecord] = useState<MealRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -64,7 +64,7 @@ export default function MealRecordDetailScreen() {
       <Image source={KITCHEN_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.back()} />
+        <ScreenHeader onBack={() => (fromCrossTab ? router.replace('/meal-log' as Href) : router.back())} />
 
         {isLoading && (
           <View style={styles.centered}>

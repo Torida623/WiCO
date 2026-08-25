@@ -125,7 +125,7 @@ export default function ShoppingMemoScreen() {
       <Image source={BACKGROUND_IMAGE} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.back()} />
+        <ScreenHeader onBack={() => router.replace('/decided-menus')} />
 
         <View style={styles.inputRow}>
           <View style={styles.textInputWrapper}>
