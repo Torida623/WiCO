@@ -55,7 +55,15 @@ const SERIES_FILTERS: { id: CostumeSeries; label: string }[] = [
   { id: 'cooking', label: 'お料理' },
   { id: 'daily', label: '日常' },
   { id: 'animal', label: 'アニマル' },
+  { id: 'dark-fantasy', label: 'ダークファンタジー' },
 ];
+
+const SERIES_LABEL: Record<CostumeSeries, string> = {
+  cooking: 'お料理',
+  daily: '日常',
+  animal: 'アニマル',
+  'dark-fantasy': 'ダークファンタジー',
+};
 
 const FILTER_PANEL_WIDTH = 220;
 
@@ -63,6 +71,8 @@ type CostumeOption = {
   id: CostumeId;
   label: string;
   tierLabel: string | null;
+  seriesLabel: string | null;
+  comment: string;
   thumbImage: number;
   tier: CostumeTier | null;
   series: CostumeSeries | null;
@@ -152,6 +162,8 @@ export default function CostumeScreen() {
       id: 'default',
       label: 'デフォルト',
       tierLabel: null,
+      seriesLabel: null,
+      comment: '',
       thumbImage: getMascotNeutralImage('default', isDay),
       tier: null,
       series: null,
@@ -162,6 +174,8 @@ export default function CostumeScreen() {
       id: costume.id,
       label: costume.label,
       tierLabel: TIER_LABEL[costume.tier],
+      seriesLabel: SERIES_LABEL[costume.series],
+      comment: costume.comment,
       thumbImage: costume.image,
       tier: costume.tier,
       series: costume.series,
@@ -193,6 +207,13 @@ export default function CostumeScreen() {
           <View style={styles.previewArea}>
             <View style={styles.namePlateWrap} pointerEvents="none">
               <Image source={NAME_PLATE_IMAGE} style={styles.namePlateImage} contentFit="contain" />
+              {!!selectedOption.comment && (
+                <View style={styles.namePlateCommentWrap}>
+                  <ThemedText type="small" style={styles.namePlateComment}>
+                    {selectedOption.comment}
+                  </ThemedText>
+                </View>
+              )}
             </View>
             <Image
               source={getMascotNeutralImage(previewId, isDay, { allowBackground: true })}
@@ -200,12 +221,20 @@ export default function CostumeScreen() {
               contentFit="contain"
             />
             <View style={styles.nameTextWrap}>
-              <ThemedText type="smallBold">{selectedOption.label}</ThemedText>
+              <View style={styles.nameTitleRow}>
+                <ThemedText type="smallBold">{selectedOption.label}</ThemedText>
+                <ThemedText
+                  type="small"
+                  themeColor="accent"
+                  style={!selectedOption.tierLabel && styles.tierLabelHidden}>
+                  {selectedOption.tierLabel || ' '}
+                </ThemedText>
+              </View>
               <ThemedText
                 type="small"
-                themeColor="accent"
-                style={!selectedOption.tierLabel && styles.tierLabelHidden}>
-                {selectedOption.tierLabel || ' '}
+                themeColor="textSecondary"
+                style={!selectedOption.seriesLabel && styles.tierLabelHidden}>
+                {selectedOption.seriesLabel || ' '}
               </ThemedText>
             </View>
           </View>
@@ -389,9 +418,25 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  namePlateCommentWrap: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    paddingHorizontal: '15%',
+    paddingTop: '9%',
+    paddingBottom: '15%',
+  },
+  namePlateComment: {
+    color: '#7a5233',
+    textAlign: 'center',
+  },
   nameTextWrap: {
     alignItems: 'center',
     gap: Spacing.half,
+  },
+  nameTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.one,
   },
   tierLabelHidden: {
     opacity: 0,
