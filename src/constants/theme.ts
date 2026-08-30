@@ -16,6 +16,8 @@ export const Colors = {
     textSecondary: '#9C8268',
     accent: '#F0955B',
     aiAccent: '#B28962',
+    premiumAccent: '#7C58AD',
+    normalAccent: '#3D7A32',
   },
   dark: {
     text: '#F5E9D6',
@@ -25,6 +27,8 @@ export const Colors = {
     textSecondary: '#C7B79A',
     accent: '#F5A56C',
     aiAccent: '#D6AC80',
+    premiumAccent: '#D9BFFA',
+    normalAccent: '#93C77D',
   },
 } as const;
 

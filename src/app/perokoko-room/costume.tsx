@@ -55,14 +55,14 @@ const SERIES_FILTERS: { id: CostumeSeries; label: string }[] = [
   { id: 'cooking', label: 'お料理' },
   { id: 'daily', label: '日常' },
   { id: 'animal', label: 'アニマル' },
-  { id: 'dark-fantasy', label: 'ダークファンタジー' },
+  { id: 'dark-fantasy', label: 'ファンタジー' },
 ];
 
 const SERIES_LABEL: Record<CostumeSeries, string> = {
   cooking: 'お料理',
   daily: '日常',
   animal: 'アニマル',
-  'dark-fantasy': 'ダークファンタジー',
+  'dark-fantasy': 'ファンタジー',
 };
 
 const FILTER_PANEL_WIDTH = 220;
@@ -224,8 +224,8 @@ export default function CostumeScreen() {
               <View style={styles.nameTitleRow}>
                 <ThemedText type="smallBold">{selectedOption.label}</ThemedText>
                 <ThemedText
-                  type="small"
-                  themeColor="accent"
+                  type="smallBold"
+                  themeColor={selectedOption.tier === 'premium' ? 'premiumAccent' : 'normalAccent'}
                   style={!selectedOption.tierLabel && styles.tierLabelHidden}>
                   {selectedOption.tierLabel || ' '}
                 </ThemedText>
