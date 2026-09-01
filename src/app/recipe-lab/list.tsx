@@ -11,6 +11,7 @@ import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { useTheme } from '@/hooks/use-theme';
 import { listMyPublicRecipes, listRecommendedRecipes, listSavedRecipes, SavedRecipe } from '@/lib/recipes';
 import { hasRecipeSearchAccess } from '@/lib/subscription';
@@ -54,6 +55,7 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
 
 export default function RecipeLabListScreen() {
   const theme = useTheme();
+  const goBack = useHierarchicalBack();
   const [tab, setTab] = useState<Tab>('recommended');
   const [recipes, setRecipes] = useState<SavedRecipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,7 +91,7 @@ export default function RecipeLabListScreen() {
       <View style={[styles.absoluteFill, { backgroundColor: theme.background, opacity: 0.3 }]} />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.back()} />
+        <ScreenHeader onBack={goBack} />
 
         <View style={styles.searchRow}>
           <Pressable onPress={handlePressSearch}>

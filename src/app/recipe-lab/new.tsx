@@ -35,6 +35,7 @@ import {
   TEMPERATURE_TAG_TINT,
 } from '@/constants/meal-flow';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { useTheme } from '@/hooks/use-theme';
 import { fetchWithTimeout, getApiUrl } from '@/lib/api';
 import { getMealRecord, updateMealRecord } from '@/lib/meal-records';
@@ -121,6 +122,7 @@ function buildIngredientsText(
 
 export default function NewRecipeScreen() {
   const theme = useTheme();
+  const goBack = useHierarchicalBack();
   const params = useLocalSearchParams<{
     title?: string;
     ingredientsText?: string;
@@ -365,7 +367,7 @@ export default function NewRecipeScreen() {
       <View style={[styles.absoluteFill, { backgroundColor: theme.background, opacity: 0.3 }]} />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.replace('/recipe-lab' as Href)} />
+        <ScreenHeader onBack={goBack} />
 
         <KeyboardAvoidingView style={styles.flex} keyboardVerticalOffset={Spacing.six}>
           <ScrollView

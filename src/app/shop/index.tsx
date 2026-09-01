@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { NORMAL_TICKET_PACKS, PREMIUM_TICKET_PACKS, ShopPack, STAR_COOKIE_PACKS } from '@/constants/shop-items';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { addTickets, CostumeTier, getTicketBalance, TICKET_LABEL } from '@/lib/costumes';
 import { addStarCookies, getStarCookieBalance } from '@/lib/star-cookies';
 
@@ -55,6 +56,7 @@ function PackRow({ pack, icon, onBuy }: { pack: ShopPack; icon?: number; onBuy: 
 }
 
 export default function ShopScreen() {
+  const goBack = useHierarchicalBack();
   const [starCookieBalance, setStarCookieBalance] = useState(0);
   const [normalBalance, setNormalBalance] = useState(0);
   const [premiumBalance, setPremiumBalance] = useState(0);
@@ -97,7 +99,7 @@ export default function ShopScreen() {
       <Image source={BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.replace('/perokoko-room' as Href)} />
+        <ScreenHeader onBack={goBack} />
 
         <ScrollView style={styles.cardArea} contentContainerStyle={styles.content}>
           <View style={styles.section}>

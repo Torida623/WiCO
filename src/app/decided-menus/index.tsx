@@ -12,6 +12,7 @@ import { ENTRY_POINT_OPTIONS } from '@/constants/meal-flow';
 import { pickPerokokoLine } from '@/constants/perokoko-lines';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { isDaytime } from '@/constants/time-of-day';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { CostumeId, getEquippedCostume, getMascotNeutralImage } from '@/lib/costumes';
 import { DecidedMenu, listDecidedMenus } from '@/lib/decided-menus';
 
@@ -47,6 +48,7 @@ export default function DecidedMenusScreen() {
   const [mascotLine, setMascotLine] = useState('');
   const [isDay, setIsDay] = useState(true);
   const [equippedCostume, setEquippedCostume] = useState<CostumeId>('default');
+  const goBack = useHierarchicalBack();
 
   useFocusEffect(
     useCallback(() => {
@@ -82,7 +84,7 @@ export default function DecidedMenusScreen() {
       {isDay && <ThemedView type="background" style={[styles.absoluteFill, { opacity: 0.3 }]} />}
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.back()} />
+        <ScreenHeader onBack={goBack} />
 
         <View style={styles.shoppingMemoRow}>
           <Pressable onPress={() => router.push('/shopping-memo' as Href)}>

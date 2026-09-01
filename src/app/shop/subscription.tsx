@@ -1,5 +1,4 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,6 +8,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { SUBSCRIPTION_PLANS, SubscriptionPlan } from '@/constants/subscription-plans';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 
 const BACKGROUND = require('@/assets/images/shop/subscription-bg.jpg');
 
@@ -92,6 +92,7 @@ function PlanCard({ plan }: { plan: SubscriptionPlan }) {
 }
 
 export default function SubscriptionShopScreen() {
+  const goBack = useHierarchicalBack();
   const isSubscribed = CURRENT_PLAN_ID !== 'free';
 
   return (
@@ -99,7 +100,7 @@ export default function SubscriptionShopScreen() {
       <Image source={BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.back()} />
+        <ScreenHeader onBack={goBack} />
 
         <ScrollView contentContainerStyle={styles.content}>
           {SUBSCRIPTION_PLANS.map((plan) => (

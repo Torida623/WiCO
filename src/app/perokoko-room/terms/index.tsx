@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { isDaytime } from '@/constants/time-of-day';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 
 const BACKGROUND_DAY = require('@/assets/images/perokoko-room/room-bg-day.jpg');
 const BACKGROUND_NIGHT = require('@/assets/images/perokoko-room/room-bg-night.jpg');
@@ -21,6 +22,7 @@ const LINKS = [
 ];
 
 export default function TermsHubScreen() {
+  const goBack = useHierarchicalBack();
   const [isDay, setIsDay] = useState(true);
 
   useFocusEffect(
@@ -34,7 +36,7 @@ export default function TermsHubScreen() {
       <Image source={isDay ? BACKGROUND_DAY : BACKGROUND_NIGHT} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="利用規約・法的情報" onBack={() => router.back()} />
+        <ScreenHeader title="利用規約・法的情報" onBack={goBack} />
 
         <View style={styles.content}>
           {LINKS.map((link) => (

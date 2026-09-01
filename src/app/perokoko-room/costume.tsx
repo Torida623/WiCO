@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Href, router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { isDaytime } from '@/constants/time-of-day';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import {
   COSTUMES,
   CostumeId,
@@ -81,6 +82,7 @@ type CostumeOption = {
 };
 
 export default function CostumeScreen() {
+  const goBack = useHierarchicalBack();
   const [isDay, setIsDay] = useState(true);
   const [equipped, setEquipped] = useState<CostumeId>('default');
   const [previewId, setPreviewId] = useState<CostumeId>('default');
@@ -201,7 +203,7 @@ export default function CostumeScreen() {
       <Image source={isDay ? BACKGROUND_DAY : BACKGROUND_NIGHT} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.replace('/perokoko-room' as Href)} />
+        <ScreenHeader onBack={goBack} />
 
         <View style={styles.bottomContent}>
           <View style={styles.previewArea}>

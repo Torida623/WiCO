@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { isDaytime } from '@/constants/time-of-day';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 
 const BACKGROUND_DAY = require('@/assets/images/perokoko-room/room-bg-day.jpg');
 const BACKGROUND_NIGHT = require('@/assets/images/perokoko-room/room-bg-night.jpg');
@@ -30,6 +31,7 @@ export function LegalDocumentScreen({
   sections: LegalDocumentSection[];
   lastUpdated: string;
 }) {
+  const goBack = useHierarchicalBack();
   const [isDay, setIsDay] = useState(true);
 
   useFocusEffect(
@@ -43,7 +45,7 @@ export function LegalDocumentScreen({
       <Image source={isDay ? BACKGROUND_DAY : BACKGROUND_NIGHT} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title={title} onBack={() => router.back()} />
+        <ScreenHeader title={title} onBack={goBack} />
 
         <ScrollView contentContainerStyle={styles.content}>
           <ThemedView type="backgroundElement" style={styles.card}>

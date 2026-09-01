@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { ThemedView } from '@/components/themed-view';
 import { CONTACT_EMAIL } from '@/constants/contact';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { isDaytime } from '@/constants/time-of-day';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { getUsername } from '@/lib/user-profile';
 
 const BACKGROUND_DAY = require('@/assets/images/perokoko-room/room-bg-day.jpg');
@@ -58,6 +59,7 @@ async function handleOpenMail(category: ContactCategory) {
 }
 
 export default function ContactScreen() {
+  const goBack = useHierarchicalBack();
   const [isDay, setIsDay] = useState(true);
 
   useFocusEffect(
@@ -71,7 +73,7 @@ export default function ContactScreen() {
       <Image source={isDay ? BACKGROUND_DAY : BACKGROUND_NIGHT} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="お問い合わせ" onBack={() => router.back()} />
+        <ScreenHeader title="お問い合わせ" onBack={goBack} />
 
         <View style={styles.content}>
           <ThemedView type="backgroundElement" style={styles.card}>

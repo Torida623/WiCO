@@ -1,5 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Image, ImageSource } from 'expo-image';
+import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DimensionValue,
@@ -542,7 +543,12 @@ export default function MealChatScreen() {
   }
 
   function handleBack() {
-    if (stepHistory.length === 0) return;
+    // At the first question there's nothing to step back to — leave the wizard
+    // for its parent (the 献立ハブ) instead of being a dead button.
+    if (stepHistory.length === 0) {
+      router.replace('/');
+      return;
+    }
     const previous = stepHistory[stepHistory.length - 1];
     setStepHistory((history) => history.slice(0, -1));
     setAnswers(previous.answers);

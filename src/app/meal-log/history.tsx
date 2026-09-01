@@ -9,6 +9,7 @@ import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { MealRecord, MealType, searchMealRecords } from '@/lib/meal-records';
 
 const KITCHEN_BACKGROUND = require('@/assets/images/meal-log/kitchen-bg.jpg');
@@ -135,6 +136,7 @@ function truncateDishName(text: string): string {
 }
 
 export default function MealLogHistoryScreen() {
+  const goBack = useHierarchicalBack();
   const [records, setRecords] = useState<MealRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
@@ -164,7 +166,7 @@ export default function MealLogHistoryScreen() {
       <Image source={KITCHEN_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.back()} />
+        <ScreenHeader onBack={goBack} />
 
         <View style={styles.filters}>
           <View style={styles.searchBar}>

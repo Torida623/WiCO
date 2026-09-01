@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ALLERGENS } from '@/constants/allergens';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { useTheme } from '@/hooks/use-theme';
 import {
   addDislikedIngredient,
@@ -27,6 +28,7 @@ const ALLERGY_CHIP_COLOR = '#C9785F';
 
 export default function FoodPreferencesScreen() {
   const theme = useTheme();
+  const goBack = useHierarchicalBack();
   const [disliked, setDisliked] = useState<string[]>([]);
   const [allergyFavorites, setAllergyFavorites] = useState<string[]>([]);
   const [freeText, setFreeText] = useState('');
@@ -72,7 +74,7 @@ export default function FoodPreferencesScreen() {
       <ThemedView type="background" style={[styles.absoluteFill, { opacity: 0.3 }]} />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.back()} />
+        <ScreenHeader onBack={goBack} />
 
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.section}>

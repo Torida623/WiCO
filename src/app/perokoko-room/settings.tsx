@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Href, router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { isDaytime } from '@/constants/time-of-day';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { useTheme } from '@/hooks/use-theme';
 import { setBgmVolume, useBgmVolume } from '@/lib/bgm-volume-store';
 import { getUsername, resetOnboarding, setUsername } from '@/lib/user-profile';
@@ -25,6 +26,7 @@ function volumeLabel(value: number): string {
 
 export default function SettingsScreen() {
   const theme = useTheme();
+  const goBack = useHierarchicalBack();
   const [isDay, setIsDay] = useState(true);
   const [name, setName] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
@@ -68,7 +70,7 @@ export default function SettingsScreen() {
       <Image source={isDay ? BACKGROUND_DAY : BACKGROUND_NIGHT} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="設定" onBack={() => router.replace('/perokoko-room' as Href)} />
+        <ScreenHeader title="設定" onBack={goBack} />
 
         <View style={styles.content}>
           <ThemedView type="backgroundElement" style={styles.card}>

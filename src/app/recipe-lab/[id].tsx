@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { useTheme } from '@/hooks/use-theme';
 import { buildRecipeTagChips } from '@/lib/recipe-tags';
 import {
@@ -28,6 +29,7 @@ const LAB_BACKGROUND = require('@/assets/images/recipe-lab/lab-bg.jpg');
 
 export default function RecipeDetailScreen() {
   const theme = useTheme();
+  const goBack = useHierarchicalBack();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [recipe, setRecipe] = useState<SavedRecipe | null>(null);
   const [canDelete, setCanDelete] = useState(false);
@@ -102,7 +104,7 @@ export default function RecipeDetailScreen() {
           } else {
             await deleteRecipe(recipe.id);
           }
-          router.back();
+          goBack();
         },
       },
     ]);
@@ -114,7 +116,7 @@ export default function RecipeDetailScreen() {
       <View style={[styles.absoluteFill, { backgroundColor: theme.background, opacity: 0.3 }]} />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.back()} />
+        <ScreenHeader onBack={goBack} />
 
         {isLoading && (
           <View style={styles.centered}>

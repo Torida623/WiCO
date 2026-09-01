@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { isDaytime } from '@/constants/time-of-day';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { useTheme } from '@/hooks/use-theme';
 import {
   aggregateMenuIngredients,
@@ -34,6 +35,7 @@ function sortDishesByCourse(dishes: DecidedDish[]): DecidedDish[] {
 
 export default function DecidedMenuDetailScreen() {
   const theme = useTheme();
+  const goBack = useHierarchicalBack();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [menu, setMenu] = useState<DecidedMenu | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -124,7 +126,7 @@ export default function DecidedMenuDetailScreen() {
       />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.back()} />
+        <ScreenHeader onBack={goBack} />
 
         {isLoading && (
           <View style={styles.centered}>

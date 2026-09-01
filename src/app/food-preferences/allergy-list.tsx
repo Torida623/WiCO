@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,9 +8,11 @@ import { ScreenHeader } from '@/components/screen-header';
 import { SideMenu } from '@/components/side-menu';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { listAllergyFavorites, setAllergyFavorite } from '@/lib/food-preferences';
 
 export default function AllergyListScreen() {
+  const goBack = useHierarchicalBack();
   const [favorites, setFavorites] = useState<string[]>([]);
 
   useFocusEffect(
@@ -34,7 +36,7 @@ export default function AllergyListScreen() {
     <ThemedView style={styles.container}>
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader title="アレルギー品目一覧" onBack={() => router.back()} />
+        <ScreenHeader title="アレルギー品目一覧" onBack={goBack} />
 
         <ScrollView contentContainerStyle={styles.content}>
           <AllergenChecklist checkedIds={favorites} onToggle={toggle} />

@@ -10,6 +10,7 @@ import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { getMealRecord, MealRecord } from '@/lib/meal-records';
 import { LinkedRecipeSnapshot, splitBookContent } from '@/lib/recipes';
 
@@ -22,7 +23,8 @@ const FOOD_GROUP_COLORS = {
 } as const;
 
 export default function MealRecordDetailScreen() {
-  const { id, fromCrossTab } = useLocalSearchParams<{ id: string; fromCrossTab?: string }>();
+  const goBack = useHierarchicalBack();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [record, setRecord] = useState<MealRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -64,7 +66,7 @@ export default function MealRecordDetailScreen() {
       <Image source={KITCHEN_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => (fromCrossTab ? router.replace('/meal-log' as Href) : router.back())} />
+        <ScreenHeader onBack={goBack} />
 
         {isLoading && (
           <View style={styles.centered}>

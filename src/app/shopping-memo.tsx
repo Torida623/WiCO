@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { useTheme } from '@/hooks/use-theme';
 import { grantFirstCookingTrioGift } from '@/lib/first-cooking-gifts';
 import {
@@ -45,6 +46,7 @@ const ITEM_FRAME_IMAGES = [
 
 export default function ShoppingMemoScreen() {
   const theme = useTheme();
+  const goBack = useHierarchicalBack();
   const [ingredients, setIngredients] = useState<MemoIngredient[]>([]);
   const [customItems, setCustomItems] = useState<string[]>([]);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
@@ -125,7 +127,7 @@ export default function ShoppingMemoScreen() {
       <Image source={BACKGROUND_IMAGE} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.replace('/decided-menus')} />
+        <ScreenHeader onBack={goBack} />
 
         <View style={styles.inputRow}>
           <View style={styles.textInputWrapper}>

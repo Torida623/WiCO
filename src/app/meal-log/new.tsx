@@ -20,6 +20,7 @@ import { ScreenHeader } from '@/components/screen-header';
 import { SideMenu } from '@/components/side-menu';
 import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { useTheme } from '@/hooks/use-theme';
 import { fetchWithTimeout, getApiUrl } from '@/lib/api';
 import { grantFirstCookingTrioGift } from '@/lib/first-cooking-gifts';
@@ -211,6 +212,7 @@ type Phase = 'capture' | 'naming' | 'analyzing';
 
 export default function NewMealRecordScreen() {
   const theme = useTheme();
+  const goBack = useHierarchicalBack();
   const { menuId, dishIndices: dishIndicesParam } = useLocalSearchParams<{ menuId?: string; dishIndices?: string }>();
   const [cameraPermission, requestCameraPermission] = ImagePicker.useCameraPermissions();
   const [libraryPermission, requestLibraryPermission] = ImagePicker.useMediaLibraryPermissions();
@@ -379,14 +381,10 @@ export default function NewMealRecordScreen() {
       grantFirstCookingTrioGift('meal-record').catch((error) => console.error(error));
       // The memory's own detail page shows the same nutrition summary and (when this record came
       // from a decided menu) the 研究所にレシピを保存する checklist, so there's no separate "saved"
-      // screen to duplicate that here — just hand off to the page that persists.
-      // menuId経由(献立ノートの「料理の思い出として記録する」)で来た場合、meal-logタブのスタックには
-      // このrecord詳細画面しか積まれていない(index/historyを経由していない)ので、戻るボタンが
-      // 料理の思い出のトップへ向かうよう[id].tsx側に伝える。
-      router.replace({
-        pathname: '/meal-log/[id]',
-        params: menuId ? { id: record.id, fromCrossTab: '1' } : { id: record.id },
-      });
+      // screen to duplicate that here — just hand off to the page that persists. Its back button
+      // walks the screen hierarchy (→ これまでの記録) regardless of how we got here, so no need to
+      // tell it which entry point this was.
+      router.replace({ pathname: '/meal-log/[id]', params: { id: record.id } });
     } catch (error) {
       console.error(error);
       Alert.alert('記録に失敗したよ', 'もう一度試してみてね。');
@@ -415,7 +413,7 @@ export default function NewMealRecordScreen() {
       <Image source={KITCHEN_BACKGROUND} style={styles.absoluteFill} contentFit="cover" />
       <SideMenu />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ScreenHeader onBack={() => router.replace('/meal-log')} />
+        <ScreenHeader onBack={goBack} />
 
         {phase === 'capture' && (
           <ScrollView style={styles.flex} contentContainerStyle={styles.captureScrollContent} pointerEvents="box-none">
