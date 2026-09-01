@@ -28,7 +28,7 @@ export type TitleMenuScreenProps = {
 type MenuItem = { key: string; image: number; onPress: () => void };
 
 const BADGE_COUNT = 5;
-const BADGE_SIZE_RATIO = 0.5; // of stage width — leaves real open water to drift through
+const BADGE_SIZE_RATIO = 0.55; // of stage width — leaves real open water to drift through
 
 // A light, airy balloon drift: the body's velocity eases toward a slowly-wandering ambient
 // current (so paths curve organically instead of bouncing in straight billiard lines), with
@@ -69,11 +69,14 @@ function FloatingStage({ items }: FloatingStageProps) {
       const nvx: number[] = [];
       const nvy: number[] = [];
       const nAngle: number[] = [];
+      const rowCountTotal = Math.ceil(BADGE_COUNT / 2);
       for (let i = 0; i < BADGE_COUNT; i++) {
-        const col = i % 2;
         const row = Math.floor(i / 2);
-        nx.push((col + 0.5) * (width / 2) - size / 2);
-        ny.push((row + 0.5) * (height / 3) - size / 2);
+        // Badges in this row (a trailing odd one gets its own row, and is centered).
+        const inRow = Math.min(2, BADGE_COUNT - row * 2);
+        const col = i % 2;
+        nx.push((col + 0.5) * (width / inRow) - size / 2);
+        ny.push((row + 0.5) * (height / rowCountTotal) - size / 2);
         const angle = Math.random() * Math.PI * 2;
         nAngle.push(angle);
         nvx.push(Math.cos(angle) * CURRENT_SPEED);
@@ -231,6 +234,8 @@ export function TitleMenuScreen({
   onSelectRecipeLab,
   onSelectPerokokoRoom,
 }: TitleMenuScreenProps) {
+  // Order here is the initial 2-per-row grid layout (badges drift freely after
+  // mount): レシピ研究所 / 料理の思い出 — ペロココの部屋 / 献立を考える — お買い物ノート (centered).
   const items: MenuItem[] = [
     {
       key: 'recipe-lab',
@@ -243,14 +248,14 @@ export function TitleMenuScreen({
       onPress: onSelectMealMemories,
     },
     {
-      key: 'menu-proposal',
-      image: require('@/assets/images/menu/title-menu-badge-menu-proposal.jpg'),
-      onPress: onSelectMenuProposal,
-    },
-    {
       key: 'perokoko-room',
       image: require('@/assets/images/menu/title-menu-badge-perokoko-room.jpg'),
       onPress: onSelectPerokokoRoom,
+    },
+    {
+      key: 'menu-proposal',
+      image: require('@/assets/images/menu/title-menu-badge-menu-proposal.jpg'),
+      onPress: onSelectMenuProposal,
     },
     {
       key: 'shopping-list',
