@@ -14,7 +14,12 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { aggregateMenuIngredients, AggregatedIngredient, DecidedDish } from '@/lib/decided-menus';
+import {
+  aggregateMenuIngredients,
+  AggregatedIngredient,
+  COURSE_PRIORITY_ORDER,
+  DecidedDish,
+} from '@/lib/decided-menus';
 import { grantFirstCookingTrioGift } from '@/lib/first-cooking-gifts';
 import { addIngredientsToMemo } from '@/lib/shopping-memo';
 
@@ -29,37 +34,33 @@ const NAV_IMAGE_ASPECT_RATIO = 1536 / 1024;
 const NAV_BUTTON_WIDTH = 140;
 const NAV_BUTTON_HEIGHT = NAV_BUTTON_WIDTH / NAV_IMAGE_ASPECT_RATIO;
 const STEPS_MARKER = '【作り方】';
-const PAGE_CHAR_BUDGET = 170;
 // Large enough to clear the sheet panel's own max-height (70%) off the bottom of any screen size.
 const SHEET_HIDDEN_OFFSET = 700;
 const SHEET_ANIM_DURATION = 320;
 
-function paginateText(text: string, budget: number): string[] {
-  const lines = text.split('\n');
-  const pages: string[] = [];
-  let current = '';
-
-  for (const line of lines) {
-    const candidate = current ? `${current}\n${line}` : line;
-    if (candidate.length > budget && current) {
-      pages.push(current);
-      current = line;
-    } else {
-      current = candidate;
-    }
-  }
-  if (current) pages.push(current);
-  return pages;
-}
-
-function splitIntoPages(content: string): string[] {
+/**
+ * Page 0 is the full ingredient list; after that it's one page per dish's steps
+ * (each page scrolls internally rather than being split across page turns). When
+ * there's no structured `dishes` (a pinned saved recipe), fall back to a single
+ * scrollable steps page.
+ */
+function buildPages(content: string, dishes: DecidedDish[]): string[] {
   const stepsIndex = content.indexOf(STEPS_MARKER);
-  if (stepsIndex < 0) return paginateText(content.trim(), PAGE_CHAR_BUDGET);
+  const ingredientsPage = (stepsIndex < 0 ? content : content.slice(0, stepsIndex)).trim();
 
-  const ingredientsText = content.slice(0, stepsIndex).trim();
-  const stepsText = content.slice(stepsIndex).trim();
-  const pages = [ingredientsText, ...paginateText(stepsText, PAGE_CHAR_BUDGET)].filter(Boolean);
-  return pages.length ? pages : [content.trim()];
+  if (dishes.length > 0) {
+    const stepPages = [...dishes]
+      .sort((a, b) => COURSE_PRIORITY_ORDER.indexOf(a.course) - COURSE_PRIORITY_ORDER.indexOf(b.course))
+      .filter((dish) => dish.steps.length > 0)
+      .map((dish) => {
+        const steps = dish.steps.map((step, i) => `${i + 1}. ${step}`).join('\n');
+        return `◆${dish.course}：${dish.title}\n${steps}`;
+      });
+    return [ingredientsPage, ...stepPages].filter(Boolean);
+  }
+
+  const stepsPage = stepsIndex < 0 ? '' : content.slice(stepsIndex).trim();
+  return [ingredientsPage, stepsPage].filter(Boolean);
 }
 
 export type RecipeBookProps = {
@@ -71,7 +72,7 @@ export type RecipeBookProps = {
 
 export function RecipeBook({ content, dishes = [], onRestart, restartLabel = 'もう一度考える' }: RecipeBookProps) {
   const theme = useTheme();
-  const pages = splitIntoPages(content);
+  const pages = buildPages(content, dishes);
   const menuIngredients: AggregatedIngredient[] = dishes.length > 0 ? aggregateMenuIngredients(dishes) : [];
 
   const [opened, setOpened] = useState(false);
