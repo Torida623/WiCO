@@ -18,7 +18,6 @@ export type TitleMenuScreenProps = {
   onSelectMenuProposal: () => void;
   onSelectMealMemories: () => void;
   onSelectShoppingMemo: () => void;
-  onSelectBudget: () => void;
   onSelectRecipeLab: () => void;
   onSelectPerokokoRoom: () => void;
 };
@@ -28,7 +27,7 @@ export type TitleMenuScreenProps = {
 // corners into a clean circular button — no separate text overlay needed.
 type MenuItem = { key: string; image: number; onPress: () => void };
 
-const BADGE_COUNT = 6;
+const BADGE_COUNT = 5;
 const BADGE_SIZE_RATIO = 0.5; // of stage width — leaves real open water to drift through
 
 // A light, airy balloon drift: the body's velocity eases toward a slowly-wandering ambient
@@ -229,7 +228,6 @@ export function TitleMenuScreen({
   onSelectMenuProposal,
   onSelectMealMemories,
   onSelectShoppingMemo,
-  onSelectBudget,
   onSelectRecipeLab,
   onSelectPerokokoRoom,
 }: TitleMenuScreenProps) {
@@ -243,11 +241,6 @@ export function TitleMenuScreen({
       key: 'meal-memories',
       image: require('@/assets/images/menu/title-menu-badge-meal-memories.jpg'),
       onPress: onSelectMealMemories,
-    },
-    {
-      key: 'budget',
-      image: require('@/assets/images/menu/title-menu-badge-budget.jpg'),
-      onPress: onSelectBudget,
     },
     {
       key: 'menu-proposal',

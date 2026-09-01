@@ -61,12 +61,6 @@ const MEAL_LOG_BGM_VOLUME = 0.4;
 const MEAL_LOG_BGM_FADE_START_MS = 139_000;
 const MEAL_LOG_BGM_FADE_IN_MS = 600;
 
-// 1:05 track
-const BUDGET_BGM = require('@/assets/audio/budget-bgm.mp3');
-const BUDGET_BGM_VOLUME = 0.4;
-const BUDGET_BGM_FADE_START_MS = 63_000;
-const BUDGET_BGM_FADE_IN_MS = 600;
-
 // 1:54 track (ひらめきキッチン) — first measured at 5:36 with a buggy duration script that missed
 // this track's VBR header and fell back to a bad CBR estimate; actual runtime is 1:53.7.
 const RECIPE_LAB_BGM = require('@/assets/audio/recipe-lab-bgm-v2.mp3');
@@ -139,13 +133,6 @@ export default function TabLayout() {
     MEAL_LOG_BGM_FADE_IN_MS,
   );
   useLoopingBgm(
-    BUDGET_BGM,
-    BUDGET_BGM_VOLUME * bgmVolumeMultiplier,
-    stage === 'app' && pathname.startsWith('/budget'),
-    BUDGET_BGM_FADE_START_MS,
-    BUDGET_BGM_FADE_IN_MS,
-  );
-  useLoopingBgm(
     RECIPE_LAB_BGM,
     RECIPE_LAB_BGM_VOLUME * bgmVolumeMultiplier,
     stage === 'app' && pathname.startsWith('/recipe-lab'),
@@ -203,7 +190,6 @@ export default function TabLayout() {
             onSelectMenuProposal={() => transitionTo('app')}
             onSelectMealMemories={() => transitionTo('app', '/meal-log' as Href)}
             onSelectShoppingMemo={() => transitionTo('app', '/shopping-memo' as Href)}
-            onSelectBudget={() => transitionTo('app', '/budget' as Href)}
             onSelectRecipeLab={() => transitionTo('app', '/recipe-lab' as Href)}
             onSelectPerokokoRoom={() => transitionTo('app', '/perokoko-room' as Href)}
           />
