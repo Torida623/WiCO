@@ -19,8 +19,8 @@ const BACKGROUND_DAY = require('@/assets/images/menu/decided-menus-bg.jpg');
 const BACKGROUND_NIGHT = require('@/assets/images/menu/decided-menus-bg-night.jpg');
 const SPEECH_BUBBLE_IMAGE = require('@/assets/images/meal-log/speech-bubble-cloud.png');
 const SPEECH_BUBBLE_ASPECT_RATIO = 1398 / 1125;
-const SHOPPING_MEMO_BUTTON_IMAGE = require('@/assets/images/menu/shopping-list-button.jpg');
-const SHOPPING_MEMO_BUTTON_ASPECT_RATIO = 1481 / 173;
+const SHOPPING_MEMO_BUTTON_IMAGE = require('@/assets/images/menu/shopping-list-button.png');
+const SHOPPING_MEMO_BUTTON_ASPECT_RATIO = 1200 / 186;
 const PREV_BUTTON_IMAGE = require('@/assets/images/menu/decided-menus-prev-button.png');
 const PREV_BUTTON_ASPECT_RATIO = 505 / 237;
 const NEXT_BUTTON_IMAGE = require('@/assets/images/menu/decided-menus-next-button.png');
@@ -185,8 +185,8 @@ const styles = StyleSheet.create({
   shoppingMemoButton: {
     width: '100%',
     aspectRatio: SHOPPING_MEMO_BUTTON_ASPECT_RATIO,
-    // The art is trimmed tight to its pill shape but still has faint white corner
-    // triangles outside the rounded ends; clipping to a stadium radius crops them away.
+    // The art is trimmed tight to its pill shape (transparent outside the rounded
+    // ends); clipping to a stadium radius keeps the soft alpha edge crisp.
     borderRadius: 9999,
     overflow: 'hidden',
   },
