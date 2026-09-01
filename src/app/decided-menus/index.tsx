@@ -183,9 +183,12 @@ const styles = StyleSheet.create({
   },
   shoppingMemoRow: {
     paddingHorizontal: Spacing.three,
+    alignItems: 'center',
   },
   shoppingMemoButton: {
-    width: '100%',
+    // Sized off a fixed height (not full width) so it reads as a button, not a
+    // banner; width follows from the art's aspect ratio.
+    height: 48,
     aspectRatio: SHOPPING_MEMO_BUTTON_ASPECT_RATIO,
     // The art is trimmed tight to its pill shape (transparent outside the rounded
     // ends); clipping to a stadium radius keeps the soft alpha edge crisp.
