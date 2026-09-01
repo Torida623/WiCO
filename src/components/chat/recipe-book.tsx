@@ -271,7 +271,7 @@ export function RecipeBook({ content, dishes = [], onRestart, restartLabel = '�
                 type="accent"
                 style={[styles.restartButton, (pressed || shoppingMemoAdded) && styles.pressed]}>
                 <ThemedText type="smallBold" themeColor="background">
-                  {shoppingMemoAdded ? '買うものリストに追加したよ' : '買うものリストを作成する'}
+                  {shoppingMemoAdded ? 'お買い物ノートに追加したよ' : 'お買い物ノートを作成する'}
                 </ThemedText>
               </ThemedView>
             )}
@@ -286,7 +286,7 @@ export function RecipeBook({ content, dishes = [], onRestart, restartLabel = '�
         <Animated.View style={sheetStyle}>
           <ThemedView type="background" style={styles.shoppingMemoSheetPanel}>
             <View style={styles.sectionHeaderRow}>
-              <ThemedText type="smallBold">買うものリストに追加する</ThemedText>
+              <ThemedText type="smallBold">お買い物ノートに追加する</ThemedText>
               <Pressable onPress={closeShoppingMemoSheet} hitSlop={8}>
                 <ThemedText type="link" themeColor="accent">
                   閉じる

@@ -160,7 +160,7 @@ export default function ShoppingMemoScreen() {
         {!isLoading && displayItems.length === 0 && (
           <View style={styles.emptyState}>
             <ThemedText type="small" themeColor="textSecondary">
-              まだ何もないよ。献立が決まったらレシピ画面の「買うものリストに追加する」から追加してね。
+              まだ何もないよ。献立が決まったらレシピ画面の「お買い物ノートに追加する」から追加してね。
             </ThemedText>
           </View>
         )}

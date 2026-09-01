@@ -184,7 +184,7 @@ export default function DecidedMenuDetailScreen() {
               <ThemedView type="background" style={styles.formCard}>
                 <View style={styles.sectionHeaderRow}>
                   <ThemedText type="smallBold" themeColor="accent" style={styles.heading}>
-                    買うものリストに追加する
+                    お買い物ノートに追加する
                   </ThemedText>
                   <Pressable onPress={toggleAllIngredients}>
                     <ThemedText type="small" themeColor="textSecondary">
@@ -235,7 +235,7 @@ export default function DecidedMenuDetailScreen() {
                       style={[styles.saveButton, (pressed || pendingIngredients.length === 0) && styles.pressed]}
                     >
                       <ThemedText type="smallBold" themeColor="background">
-                        買うものリストに追加する
+                        お買い物ノートに追加する
                       </ThemedText>
                     </ThemedView>
                   )}

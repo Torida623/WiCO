@@ -31,7 +31,7 @@ const TITLE_BGM_VOLUME = 0.4;
 const DAY_BGM = { source: require('@/assets/audio/title-bgm.mp3'), fadeStartMs: 75_000, fadeInMs: 600 }; // 1:17 track
 const NIGHT_BGM = { source: require('@/assets/audio/night-bgm.mp3'), fadeStartMs: 115_000, fadeInMs: 0 }; // 1:57 track
 
-// Shared by 献立ノート(decided-menus) and 買うものリスト(shopping-memo). The mp3-header script used to
+// Shared by 献立ノート(decided-menus) and お買い物ノート(shopping-memo). The mp3-header script used to
 // measure these initially had an offset bug that missed each track's VBR (Xing) header and fell
 // back to a much-too-long CBR estimate (reported ~6:06 for both) — actual runtime is ~2:02/~2:08.
 const NOTEBOOK_BGM_VOLUME = 0.4;
