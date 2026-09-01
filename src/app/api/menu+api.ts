@@ -1,7 +1,11 @@
 import OpenAI from 'openai';
 
 import { Answers, COURSE_OPTIONS, Course, ENTRY_POINT_OPTIONS, PinnedDish, seasoningLabel } from '@/constants/meal-flow';
-import { JAPANESE_CHAT_MODEL, createJapaneseChatCompletion } from '@/lib/openai-japanese';
+import {
+  JAPANESE_CHAT_MODEL,
+  JAPANESE_CHAT_MODEL_FAST,
+  createJapaneseChatCompletion,
+} from '@/lib/openai-japanese';
 
 // 提案用・変更用の2プロンプトで文言が別々にコピペされて少しずつズレていた（特にアレルギー例が
 // 変更用の方だけ少なかった）ため、共通部分をここにまとめて両方から参照する形にしている。
@@ -16,6 +20,9 @@ const TONE_INSTRUCTION =
 const NATURAL_COMBINATION_INSTRUCTION =
   '実際に家庭で作られている自然な組み合わせにしてください。食材や調味料の組み合わせが不自然な、いわゆる「謎料理」は絶対に避けてください。';
 
+const DISH_NAMING_INSTRUCTION =
+  '料理名は、レシピ本やお店のメニューに出てくるような短く自然な名前にしてください。使った食材を「と」「・」でつなげて並べただけの説明的な名前（悪い例:「豚バラとキャベツ・かぼちゃの味噌生姜蒸し煮」）は避け、中心になる食材1〜2品と調理法・味付けで簡潔にまとめてください（良い例:「豚バラキャベツの味噌蒸し」「かぼちゃの甘辛煮」「鶏むね肉の照り焼き」）。';
+
 const MENU_ALLERGY_INSTRUCTION =
   'ユーザーの文脈に「アレルギー」が含まれる場合、それは絶対に守るべき安全上の制約です。名指しされた食材そのものだけでなく、それを原材料として含む調味料・加工食品も一切使わないでください（例: 卵アレルギーなら卵焼きだけでなくマヨネーズやハンバーグのつなぎも避ける、乳アレルギーならバター・チーズ・生クリーム・練乳も避ける、小麦アレルギーなら醤油・パン粉・カレールウ・餃子の皮も避ける）。少しでも含まれる可能性がある料理は候補から外し、確実に安全と言える献立にしてください。ユーザーの文脈に「苦手な食材」が含まれる場合は好みの問題なので、無理のない範囲でできるだけ避けてください（アレルギーほど厳格でなくて構いません）。';
 
@@ -24,12 +31,15 @@ const PROPOSAL_SYSTEM_PROMPT = `${PEROKOKO_PERSONA_INTRO}
 
 提案する献立は、${NATURAL_COMBINATION_INSTRUCTION}
 
+${DISH_NAMING_INSTRUCTION}
+
 ${MENU_ALLERGY_INSTRUCTION}
 
 献立は必ずしも主菜・副菜・汁物・主食をすべて揃える必要はありません。料理の種類に応じて自然な構成にしてください。
 
 ラーメン・丼・カレー・パスタ・サンドイッチ・チャーハン・鍋物など、1品で主食・主菜・汁物のうち複数の役割を兼ねる料理を提案する場合は、項目名を「主菜」ではなく「メイン」にしてください。焼き魚や生姜焼きのように、はっきり主菜だけの料理の場合は「主菜」のままにしてください。
-副菜・汁物・主食は、実際に追加で提案したい料理がある場合のみ記載してください。追加する品がない項目は行ごと丸々省略してください。「なし」「特になし」のように書いて空欄を埋めることは絶対にしないでください。
+汁物（味噌汁やスープなど手軽なもの）は、定食スタイルの献立ならできるだけ添えてください。丼・麺・カレー・鍋のように1品で完結する「メイン」型の献立や、ユーザーが手早く済ませたそうなときは省略してかまいません。
+副菜・主食は、実際に追加で提案したい料理がある場合のみ記載してください。追加する品がない項目は行ごと丸々省略してください。どの項目も「なし」「特になし」のように書いて空欄を埋めることは絶対にしないでください。
 
 ユーザーの文脈に「献立には既に〜を使うことが決まっている」と書かれている場合、その品目の行は必ずそのタイトルをそのまま使ってください（言い換えたり別の料理に変えたりしないでください）。別料理の候補にも出さないでください。他の品目（まだ決まっていないもの）だけ、通常通り自然に考えて追加してください。
 
@@ -44,7 +54,7 @@ ${MENU_ALLERGY_INSTRUCTION}
 🍽️ 献立
 ・(主菜 または メイン)：〇〇
 ・副菜：〇〇(追加する場合のみ)
-・汁物：〇〇(追加する場合のみ)
+・汁物：〇〇(定食スタイルならできるだけ)
 ・主食：〇〇(追加する場合のみ)
 
 (所要時間や味わい・魅力について、その献立の内容に合わせて毎回自分で考えた一文。言い回しを使い回さないこと)
@@ -60,6 +70,8 @@ const REVISION_SYSTEM_PROMPT = `${PEROKOKO_PERSONA_INTRO}
 ${TONE_INSTRUCTION}
 
 変更後の献立も、${NATURAL_COMBINATION_INSTRUCTION}
+
+${DISH_NAMING_INSTRUCTION}
 
 ${MENU_ALLERGY_INSTRUCTION}
 
@@ -311,7 +323,8 @@ export async function POST(request: Request) {
 
       if (previousProposal && revisionRequest) {
         const response = await createJapaneseChatCompletion(openai, {
-          model: JAPANESE_CHAT_MODEL,
+          model: JAPANESE_CHAT_MODEL_FAST,
+          reasoning_effort: 'low',
           response_format: {
             type: 'json_schema',
             json_schema: { name: 'menu_revision', strict: true, schema: REVISION_RESPONSE_SCHEMA },
@@ -341,7 +354,8 @@ export async function POST(request: Request) {
 
       const fridgeHint = answers.entryPoint === 'fridge' ? `\n${buildFridgeHint()}` : '';
       const response = await createJapaneseChatCompletion(openai, {
-        model: JAPANESE_CHAT_MODEL,
+        model: JAPANESE_CHAT_MODEL_FAST,
+        reasoning_effort: 'low',
         messages: [
           { role: 'system', content: PROPOSAL_SYSTEM_PROMPT },
           { role: 'user', content: `${summarizeAnswers(answers)}\n\n${buildVarietyHint()}${fridgeHint}` },
@@ -355,6 +369,10 @@ export async function POST(request: Request) {
     const proposalText: string = body.proposalText ?? '';
     const response = await createJapaneseChatCompletion(openai, {
       model: JAPANESE_CHAT_MODEL,
+      // Generating full ingredient lists + steps is more involved than the
+      // proposal, so 'low' rather than 'minimal' — but still well below the
+      // default effort that pushed this toward the 60s timeout.
+      reasoning_effort: 'low',
       response_format: {
         type: 'json_schema',
         json_schema: { name: 'menu_final', strict: true, schema: FINAL_RESPONSE_SCHEMA },
